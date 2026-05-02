@@ -1,0 +1,16 @@
+{
+  "name": "backend-devcontainer",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "backend",
+  "workspaceFolder": "/app",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+				"ms-python.python",
+        "ms-python.vscode-pylance"
+			]
+    }
+  },
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt",
+  "shutdownAction": "none"
+}
