@@ -12,6 +12,15 @@ def sign_in(email: str, password: str):
   
   return response
 
+def refresh_session(refresh_token: str):
+    response = supabase.auth.refresh_session(refresh_token)
+    
+    if response is None:
+      raise Exception
+    
+    return response
+
 #サインアウト
 def sign_out():
   supabase.auth.sign_out()
+
