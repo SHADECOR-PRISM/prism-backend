@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException, Response
 from app.crud.crud_auth import sign_in, sign_out
+from app.schemas.auth import Token
 
 import app.core.config as config
 
 router = APIRouter()
 
-@router.post("/login")
+@router.post("/login", response_model=Token)
 def login(userData: dict, response: Response):
   user_id = str(userData.get("userId"))
   password = str(userData.get("password"))
