@@ -94,4 +94,3 @@ prism-backend/
 - テストファイルを作成する場合testフォルダ内部に配置してください。
 
 © 2026 SHADECOR / PRISM Project Team
-```
