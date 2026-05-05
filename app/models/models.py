@@ -49,6 +49,7 @@ class ApplicationHeader(Base):
   approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
   
   type = Column(Enum('expense', 'income', name='application_type'), default='expense')
+  category = Column(String(100), nullable=True)
   applied_at = Column(DateTime, default=datetime.now)
   approved_at = Column(DateTime, nullable=True)
   status = Column(Enum('pending', 'approved', 'rejected', name='approval_status'), default='pending')
