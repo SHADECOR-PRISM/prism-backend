@@ -8,9 +8,6 @@ def get_current_user(token: str = Depends(reusable_oauth2)):
     user_response = get_user(token)
 
     if not user_response:
-        raise HTTPException(status_code = 401, detail = "user response failed")
-
-    if not user_response.user:
-        raise HTTPException(status_code = 401, detail = "un-authorized")
+        raise HTTPException(status_code = 401, detail = "User response failed")
     
-    return user_response.user
+    return user_response
