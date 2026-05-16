@@ -9,4 +9,5 @@ SUPABASE_KEY = str(os.getenv('SUPABASE_KEY'))
 ADD_EMAIL_ADRESS = str(os.getenv('ADD_EMAIL_ADRESS'))
 
 # local development
-FRONTEND_URL="http://localhost:3000"
+FRONTEND_URL = "http://localhost:3000"
+FETCH_LIMIT = 10
