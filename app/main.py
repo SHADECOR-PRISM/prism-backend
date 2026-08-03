@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth
 from app.api import user
+from app.api import projects
 from app.api.accounting import requests
 from app.core.config import FRONTEND_URL
 
@@ -20,4 +21,5 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(user.router)
+app.include_router(projects.router)
 app.include_router(requests.router)
