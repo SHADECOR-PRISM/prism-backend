@@ -102,3 +102,33 @@ class ContainerDetailResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ==========================================
+# 7. 更新・追記・削除 API用 (Update用) スキーマ ★ 追加！
+# ==========================================
+
+# 更新用明細（交通費・経費の要素を内包する柔軟なスキーマ）
+class UpdateDetailItem(BaseModel):
+    id: Optional[UUID] = Field(None, description="既存カードはUUID、新規追加カードは None")
+    usage_date: date
+    category: str
+    departure: Optional[str] = Field(None, max_length=100)
+    arrival: Optional[str] = Field(None, max_length=100)
+    is_round_trip: Optional[bool] = True
+    remark: Optional[str] = Field(None, max_length=100)
+    amount: int = Field(gt=0, description="金額は1円以上")
+
+
+# 更新APIリクエストボディ
+class ApplicationUpdateRequest(BaseModel):
+    container_id: UUID
+    updated_details: List[UpdateDetailItem] = []
+    deleted_detail_ids: List[UUID] = []
+    is_all_deleted: bool = False
+
+
+# 更新完了レスポンス用
+class ApplicationUpdateResponse(BaseModel):
+    success: bool
+    message: str

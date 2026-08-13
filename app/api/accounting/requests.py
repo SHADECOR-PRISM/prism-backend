@@ -8,10 +8,12 @@ from app.schemas.accounting import (
     Container, 
     ApplicationCreateRequest, 
     ApplicationCreateResponse,
-    ContainerDetailResponse  
+    ContainerDetailResponse,
+    ApplicationUpdateRequest,     
+    ApplicationUpdateResponse      
 )
 from app.models.models import Users
-from app.crud.crud_accounting import create_application
+from app.crud.crud_accounting import create_application, update_application  # ★ update_application 追加
 from app.core.date_formatter import parse_iso_date_to_string
 
 router = APIRouter()
@@ -95,6 +97,39 @@ def create_new_application(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"申請の登録処理に失敗しました: {str(e)}"
+        )
+
+
+# ==========================================
+# 【PUT】既存申請の更新・追記・削除用エンドポイント ★ 追加！
+# ==========================================
+@router.put("/accounting/requests", response_model=ApplicationUpdateResponse)
+def update_existing_application(
+    request_data: ApplicationUpdateRequest,
+    current_user: Users = Depends(get_current_user)
+):
+    try:
+        success, message = update_application(payload=request_data)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=message
+            )
+
+        return ApplicationUpdateResponse(
+            success=True,
+            message=message
+        )
+
+    except HTTPException:
+        # 明示的な 400 や 404 等のエラーはスルー
+        raise
+    except Exception as e:
+        print(f"update_existing_application Error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"申請の更新処理に失敗しました: {str(e)}"
         )
 
 
