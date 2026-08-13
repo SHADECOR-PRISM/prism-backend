@@ -2,18 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import datetime
 from uuid import UUID
 from app.api.deps import get_current_user
-from app.crud.crud_container import get_user_container
-from app.crud.crud_container_detail import get_container_detail_by_id 
+from app.crud.crud_container import get_user_container, get_all_containers  
+from app.crud.crud_container_detail import get_container_detail_by_id, get_admin_container_detail_by_id
 from app.schemas.accounting import (
     Container, 
     ApplicationCreateRequest, 
     ApplicationCreateResponse,
     ContainerDetailResponse,
     ApplicationUpdateRequest,     
-    ApplicationUpdateResponse      
+    ApplicationUpdateResponse,
+    ApplicationApprovalRequest     
 )
 from app.models.models import Users
-from app.crud.crud_accounting import create_application, update_application  # ★ update_application 追加
+from app.crud.crud_accounting import create_application, update_application, update_application_approval  
 from app.core.date_formatter import parse_iso_date_to_string
 
 router = APIRouter()
@@ -68,7 +69,6 @@ def get_container_me(
             detail=f"一覧データの取得に失敗しました: {str(e)}"
         )
 
-
 # ==========================================
 # 【POST】新規申請登録用エンドポイント
 # ==========================================
@@ -101,7 +101,7 @@ def create_new_application(
 
 
 # ==========================================
-# 【PUT】既存申請の更新・追記・削除用エンドポイント ★ 追加！
+# 【PUT】既存申請の更新・追記・削除用エンドポイント 
 # ==========================================
 @router.put("/accounting/requests", response_model=ApplicationUpdateResponse)
 def update_existing_application(
@@ -166,4 +166,120 @@ def get_container_detail(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"詳細データの取得処理に失敗しました: {str(e)}"
+        )
+
+
+
+# ==========================================
+# 【GET】全ユーザーコンテナ一覧取得エンドポイント (管理者用 approvalページ) 
+# ==========================================
+@router.get("/admin/container/all", response_model=list[Container])
+def get_container_all(
+    start: datetime, 
+    end: datetime, 
+    offset: int, 
+    current_user: Users = Depends(get_current_user)
+):
+    try:
+        start_naive = start.replace(tzinfo=None) if start.tzinfo else start
+        end_naive = end.replace(tzinfo=None) if end.tzinfo else end
+
+        # 全ユーザーのコンテナ一覧を CRUD 経由で取得
+        containers = get_all_containers(start_naive, end_naive, offset)
+
+        result = []
+        for container in containers:
+            applied_at_raw = container.get("applied_at")
+            if isinstance(applied_at_raw, datetime):
+                formatted_date = applied_at_raw.strftime("%Y-%m-%dT%H:%M:%S")
+            elif isinstance(applied_at_raw, str) and applied_at_raw:
+                formatted_date = parse_iso_date_to_string(applied_at_raw)
+            else:
+                formatted_date = ""
+
+            result.append({
+                "id": container.get("id"),
+                "user_id": container.get("user_id", ""), 
+                "project_name": container.get("project_name", "未設定"),
+                "category": container.get("category"),
+                "applied_at": formatted_date,
+                "status": container.get("status"),
+                "total_amount": container.get("total_amount", 0)
+            })
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"get_container_all Error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"全一覧データの取得に失敗しました: {str(e)}"
+        )
+
+
+
+# ==========================================
+# 【GET】管理者用 コンテナ詳細取得エンドポイント
+# ==========================================
+@router.get("/admin/container/{container_id}", response_model=ContainerDetailResponse)
+def get_admin_container_detail(
+    container_id: UUID,
+    current_user: Users = Depends(get_current_user)
+):
+    try:
+        # 所有者チェックを行わない管理者用 CRUD を呼び出し
+        result = get_admin_container_detail_by_id(container_id=str(container_id))
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="指定された申請コンテナが見つかりません"
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"get_admin_container_detail Error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"詳細データの取得処理に失敗しました: {str(e)}"
+        )
+
+
+# ==========================================
+# 【PUT】管理者用 承認ステータス更新エンドポイント
+# ==========================================
+@router.put("/admin/accounting/requests/approval", response_model=ApplicationUpdateResponse)
+def update_application_approval_endpoint(
+    request_data: ApplicationApprovalRequest,
+    current_user: Users = Depends(get_current_user)
+):
+    try:
+        success, message = update_application_approval(
+            admin_user_db_id=str(current_user.id),
+            payload=request_data
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=message
+            )
+
+        return ApplicationUpdateResponse(
+            success=True,
+            message=message
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"update_application_approval_endpoint Error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"承認ステータスの更新処理に失敗しました: {str(e)}"
         )
