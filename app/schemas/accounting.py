@@ -56,7 +56,7 @@ class ExpenseDetailBase(BaseModel):
 class ExpenseDetailCreate(ExpenseDetailBase):
     id: Optional[UUID] = None
 
-# 表示用（Read）★ 追加！
+# 表示用（Read）
 class ExpenseDetailResponse(ExpenseDetailBase):
     id: UUID
     status: Literal["pending", "approved", "rejected"]
@@ -105,7 +105,7 @@ class ContainerDetailResponse(BaseModel):
 
 
 # ==========================================
-# 7. 更新・追記・削除 API用 (Update用) スキーマ ★ 追加！
+# 7. 更新・追記・削除 API用 (Update用) スキーマ 
 # ==========================================
 
 # 更新用明細（交通費・経費の要素を内包する柔軟なスキーマ）
@@ -132,3 +132,14 @@ class ApplicationUpdateRequest(BaseModel):
 class ApplicationUpdateResponse(BaseModel):
     success: bool
     message: str
+
+# ==========================================
+# 管理者 承認更新用スキーマ
+# ==========================================
+class CardStatusUpdateItem(BaseModel):
+    id: UUID
+    status: Literal["pending", "approved", "rejected"]
+
+class ApplicationApprovalRequest(BaseModel):
+    container_id: UUID
+    details: List[CardStatusUpdateItem]

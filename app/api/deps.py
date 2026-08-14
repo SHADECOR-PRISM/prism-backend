@@ -7,7 +7,7 @@ from app.models.models import Users
 
 __all__ = ["get_current_user"]
 
-reusable_oauth2 = OAuth2PasswordBearer(tokenUrl="api/login")
+reusable_oauth2 = OAuth2PasswordBearer(tokenUrl="/login")
 
 NETWORK_ERRORS = (
     httpx.HTTPError,

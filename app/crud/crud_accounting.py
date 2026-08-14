@@ -2,7 +2,7 @@ from uuid import uuid4
 from datetime import datetime
 from typing import Dict, Any, Tuple
 from app.db.session import supabase
-from app.schemas.accounting import ApplicationCreateRequest, ApplicationUpdateRequest
+from app.schemas.accounting import ApplicationCreateRequest, ApplicationUpdateRequest, ApplicationApprovalRequest
 
 # ==========================================
 # 1. 新規申請登録 (既存の関数)
@@ -198,3 +198,78 @@ def update_application(payload: ApplicationUpdateRequest) -> Tuple[bool, str]:
     ).eq("id", container_id_str).execute()
 
     return True, "申請内容を正常に更新しました。"
+
+
+
+def update_application_approval(
+    admin_user_db_id: str,
+    payload: ApplicationApprovalRequest
+) -> Tuple[bool, str]:
+    """
+    管理者用: 明細カードの承認ステータスを更新し、コンテナ全体のステータスを連動更新する。
+    """
+    container_id_str = str(payload.container_id)
+    now_iso = datetime.utcnow().isoformat()
+
+    # 1. コンテナヘッダーの存在確認
+    header_res = (
+        supabase.table("application_header")
+        .select("id, category")
+        .eq("id", container_id_str)
+        .execute()
+    )
+
+    if not header_res.data or not isinstance(header_res.data, list) or len(header_res.data) == 0:
+        return False, "指定された申請が見つかりません。"
+
+    header_data = header_res.data[0]
+    if not isinstance(header_data, dict):
+        return False, "データの取得形式が不正です。"
+
+    category_name = header_data.get("category")
+    is_transport = category_name == "交通費"
+    detail_table = "transportation_detail" if is_transport else "expense_detail"
+
+    # 2. 各明細カードの status を更新
+    for item in payload.details:
+        supabase.table(detail_table).update({
+            "status": item.status
+        }).eq("id", str(item.id)).execute()
+
+    # 3. コンテナに紐づく全明細のステータスを取得して親（ヘッダー）のステータスを自動判定
+    all_details_res = (
+        supabase.table(detail_table)
+        .select("status")
+        .eq("header_id", container_id_str)
+        .execute()
+    )
+
+    statuses = [
+        row.get("status") 
+        for row in (all_details_res.data or []) 
+        if isinstance(row, dict)
+    ]
+
+    # 親コンテナのステータス判定ロジック
+    # - 全て approved -> approved
+    # - 1つでも rejected があり pending がない -> rejected (または部分却下)
+    # - pending が残っている -> pending
+    if all(s == "approved" for s in statuses):
+        header_status = "approved"
+    elif any(s == "rejected" for s in statuses) and not any(s == "pending" for s in statuses):
+        header_status = "rejected"
+    else:
+        header_status = "pending"
+
+    # 4. コンテナヘッダーのステータス・承認者・承認日時を更新
+    header_update_payload: Dict[str, Any] = {
+        "status": header_status,
+        "approved_by": admin_user_db_id if header_status != "pending" else None,
+        "approved_at": now_iso if header_status != "pending" else None,
+    }
+
+    supabase.table("application_header").update(
+        header_update_payload
+    ).eq("id", container_id_str).execute()
+
+    return True, "承認ステータスを正常に更新しました。"
