@@ -143,3 +143,20 @@ class CardStatusUpdateItem(BaseModel):
 class ApplicationApprovalRequest(BaseModel):
     container_id: UUID
     details: List[CardStatusUpdateItem]
+
+
+# 管理者 analytics用スキーマ
+class StatusCounts(BaseModel):
+    approved: int = 0
+    pending: int = 0
+    rejected: int = 0
+    total: int = 0
+
+class ExpenseBreakdown(BaseModel):
+    transport: int = 0
+    general: int = 0
+    total: int = 0
+
+class AnalyticsSummaryResponse(BaseModel):
+    status_counts: StatusCounts
+    expenses: ExpenseBreakdown

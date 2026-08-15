@@ -4,6 +4,8 @@ from uuid import UUID
 from app.api.deps import get_current_user
 from app.crud.crud_container import get_user_container, get_all_containers  
 from app.crud.crud_container_detail import get_container_detail_by_id, get_admin_container_detail_by_id
+from app.crud.crud_accounting import create_application, update_application, update_application_approval  
+from app.crud.crud_analytics import get_analytics_summary
 from app.schemas.accounting import (
     Container, 
     ApplicationCreateRequest, 
@@ -11,10 +13,10 @@ from app.schemas.accounting import (
     ContainerDetailResponse,
     ApplicationUpdateRequest,     
     ApplicationUpdateResponse,
-    ApplicationApprovalRequest     
+    ApplicationApprovalRequest,
+    AnalyticsSummaryResponse   
 )
 from app.models.models import Users
-from app.crud.crud_accounting import create_application, update_application, update_application_approval  
 from app.core.date_formatter import parse_iso_date_to_string
 
 router = APIRouter()
@@ -332,4 +334,45 @@ def get_admin_container_by_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"ユーザー別申請一覧データの取得に失敗しました: {str(e)}"
+        )
+    
+
+
+# ==========================================
+# 【GET】管理者用: アナリティクス集計データ取得エンドポイント
+# ==========================================
+@router.get("/admin/analytics/summary", response_model=AnalyticsSummaryResponse)
+def get_admin_analytics_summary(
+    start: datetime,
+    end: datetime,
+    current_user: Users = Depends(get_current_user)
+):
+    try:
+        # str() で明示的に文字列値として比較
+        if str(current_user.role) != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="管理者権限が必要です"
+            )
+
+        start_naive = start.replace(tzinfo=None) if start.tzinfo else start
+        end_naive = end.replace(tzinfo=None) if end.tzinfo else end
+
+        if start_naive > end_naive:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="開始日時は終了日時以前である必要があります"
+            )
+
+        # 集計 CRUD の呼び出し
+        result = get_analytics_summary(start_dt=start_naive, end_dt=end_naive)
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"get_admin_analytics_summary Error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"アナリティクス集計データの取得に失敗しました: {str(e)}"
         )
