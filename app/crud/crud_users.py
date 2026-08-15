@@ -36,3 +36,16 @@ def get_user(token: str) -> Optional[Users]:
         # Supabase APIレベルの認証失敗・データ未存在エラーのみを捕捉して None 化
         print(f"[get_user] Supabase API Error: {e}")
         return None
+    
+
+
+# 全generalユーザー一覧を取得する（管理者用）
+def get_all_users() -> list[Dict[str, Any]]:
+    response = (
+        supabase.table("users")
+        .select("id, user_id, name, role")
+        .eq("role", "general")
+        .order("user_id")
+        .execute()
+    )
+    return cast(list[Dict[str, Any]], response.data) if response.data else []

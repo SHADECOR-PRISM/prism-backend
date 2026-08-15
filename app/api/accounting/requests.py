@@ -283,3 +283,53 @@ def update_application_approval_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"承認ステータスの更新処理に失敗しました: {str(e)}"
         )
+
+
+# ==========================================
+# 【GET】管理者用: 特定ユーザーのコンテナ一覧取得 (printCheckApprovalページ用)
+# ==========================================
+@router.get("/admin/container/user/{target_user_id}", response_model=list[Container])
+def get_admin_container_by_user(
+    target_user_id: UUID,
+    start: datetime, 
+    end: datetime, 
+    offset: int, 
+    current_user: Users = Depends(get_current_user)
+):
+    try:
+        start_naive = start.replace(tzinfo=None) if start.tzinfo else start
+        end_naive = end.replace(tzinfo=None) if end.tzinfo else end
+
+        # 既存の get_user_container に target_user_id (UUID文字列) を渡して取得
+        containers = get_user_container(str(target_user_id), start_naive, end_naive, offset)
+
+        result = []
+        for container in containers:
+            applied_at_raw = container.get("applied_at")
+            if isinstance(applied_at_raw, datetime):
+                formatted_date = applied_at_raw.strftime("%Y-%m-%dT%H:%M:%S")
+            elif isinstance(applied_at_raw, str) and applied_at_raw:
+                formatted_date = parse_iso_date_to_string(applied_at_raw)
+            else:
+                formatted_date = ""
+
+            result.append({
+                "id": container.get("id"),
+                "user_id": container.get("user_id", ""),
+                "project_name": container.get("project_name", "未設定"),
+                "category": container.get("category"),
+                "applied_at": formatted_date,
+                "status": container.get("status"),
+                "total_amount": container.get("total_amount", 0)
+            })
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"get_admin_container_by_user Error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"ユーザー別申請一覧データの取得に失敗しました: {str(e)}"
+        )
