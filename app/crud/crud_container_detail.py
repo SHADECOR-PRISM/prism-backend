@@ -73,18 +73,16 @@ def get_container_detail_by_id(
     }
 
 
-
-
 def get_admin_container_detail_by_id(
     container_id: str
 ) -> Optional[Dict[str, Any]]:
     """
     管理者用: 所有者チェック（user_id一致判定）を行わずに任意のコンテナ詳細を取得する。
     """
-    # 1. ヘッダー情報、プロジェクト名、申請者ユーザー情報を結合取得
+    # 1. ヘッダー情報、プロジェクト名、申請者ユーザー情報（user_id, name）を結合取得
     response = (
         supabase.table("application_header")
-        .select("*, projects(name), users:user_id(user_id)")
+        .select("*, projects(name), users:user_id(user_id, name)")
         .eq("id", container_id)
         .execute()
     )
@@ -94,12 +92,16 @@ def get_admin_container_detail_by_id(
 
     header = cast(Dict[str, Any], response.data[0])
 
-    # 2. プロジェクト名・ユーザーIDの抽出
+    # 2. プロジェクト名・ユーザーID・氏名の抽出
     project_data = header.get("projects")
     project_name = project_data.get("name", "未設定") if isinstance(project_data, dict) else "未設定"
 
     user_data = header.get("users")
-    user_public_id = user_data.get("user_id", "") if isinstance(user_data, dict) else ""
+    user_public_id = ""
+    user_name = ""
+    if isinstance(user_data, dict):
+        user_public_id = user_data.get("user_id", "")
+        user_name = user_data.get("name", "")
 
     # 3. 日付フォーマット整形
     formatted_date = parse_iso_date_to_string(header.get("applied_at"))
@@ -132,6 +134,7 @@ def get_admin_container_detail_by_id(
     return {
         "id": str(header.get("id")),
         "user_id": user_public_id,
+        "user_name": user_name,
         "project_name": project_name,
         "category": category,
         "applied_at": formatted_date,
@@ -140,7 +143,6 @@ def get_admin_container_detail_by_id(
         "transportation_details": transport_details,
         "expense_details": expense_details,
     }
-
 
 
 def get_bulk_admin_container_details(
@@ -153,10 +155,10 @@ def get_bulk_admin_container_details(
     if not container_ids:
         return []
 
-    # 1. ヘッダー情報、プロジェクト名、申請者ユーザー情報を一括取得
+    # 1. ヘッダー情報、プロジェクト名、申請者ユーザー情報（user_id, name）を一括取得
     response = (
         supabase.table("application_header")
-        .select("*, projects(name), users:user_id(user_id)")
+        .select("*, projects(name), users:user_id(user_id, name)")
         .in_("id", container_ids)
         .execute()
     )
@@ -204,12 +206,12 @@ def get_bulk_admin_container_details(
         if h_id:
             exp_map.setdefault(h_id, []).append(item)
 
-    # 3. 既存の単件取得（get_admin_container_detail_by_id）と同一の整形処理
+    # 3. 整形処理
     results: List[Dict[str, Any]] = []
     for header in headers:
         c_id = str(header.get("id"))
 
-        # プロジェクト名・ユーザーIDの抽出
+        # プロジェクト名・ユーザーID・氏名の抽出
         project_data = header.get("projects")
         project_name = "未設定"
         if isinstance(project_data, dict):
@@ -217,8 +219,10 @@ def get_bulk_admin_container_details(
 
         user_data = header.get("users")
         user_public_id = ""
+        user_name = ""
         if isinstance(user_data, dict):
             user_public_id = user_data.get("user_id", "")
+            user_name = user_data.get("name", "")
 
         # 日付フォーマット整形
         formatted_date = parse_iso_date_to_string(header.get("applied_at"))
@@ -228,6 +232,7 @@ def get_bulk_admin_container_details(
         results.append({
             "id": c_id,
             "user_id": user_public_id,
+            "user_name": user_name,
             "project_name": project_name,
             "category": category,
             "applied_at": formatted_date,

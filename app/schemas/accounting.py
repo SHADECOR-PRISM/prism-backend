@@ -92,6 +92,7 @@ class ApplicationCreateResponse(BaseModel):
 class ContainerDetailResponse(BaseModel):
     id: str
     user_id: str
+    user_name: Optional[str] = None  # ★ 追加（デフォルト None のため既存APIに影響なし）
     project_name: str
     category: str
     applied_at: str
