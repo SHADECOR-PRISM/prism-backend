@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from datetime import datetime
 from uuid import UUID
+from typing import List
 from app.api.deps import get_current_user
 from app.crud.crud_container import get_user_container, get_all_containers  
-from app.crud.crud_container_detail import get_container_detail_by_id, get_admin_container_detail_by_id
+from app.crud.crud_container_detail import get_container_detail_by_id, get_admin_container_detail_by_id, get_bulk_admin_container_details
 from app.crud.crud_accounting import create_application, update_application, update_application_approval  
 from app.crud.crud_analytics import get_analytics_summary
 from app.schemas.accounting import (
@@ -14,7 +15,8 @@ from app.schemas.accounting import (
     ApplicationUpdateRequest,     
     ApplicationUpdateResponse,
     ApplicationApprovalRequest,
-    AnalyticsSummaryResponse   
+    AnalyticsSummaryResponse,
+    BulkContainerDetailsRequest   
 )
 from app.models.models import Users
 from app.core.date_formatter import parse_iso_date_to_string
@@ -173,21 +175,29 @@ def get_container_detail(
 
 
 # ==========================================
-# 【GET】全ユーザーコンテナ一覧取得エンドポイント (管理者用 approvalページ) 
+# 【GET】全ユーザーコンテナ一覧取得エンドポイント (管理者用 approvalページ / 帳票全体出力用) 
 # ==========================================
 @router.get("/admin/container/all", response_model=list[Container])
 def get_container_all(
     start: datetime, 
     end: datetime, 
-    offset: int, 
+    offset: int = 0,
+    limit: int = Query(20, ge=1, le=1000),  # デフォルト20件、最大1000件
     current_user: Users = Depends(get_current_user)
 ):
     try:
+        # 管理者権限チェック
+        if str(current_user.role) != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="管理者権限が必要です"
+            )
+
         start_naive = start.replace(tzinfo=None) if start.tzinfo else start
         end_naive = end.replace(tzinfo=None) if end.tzinfo else end
 
-        # 全ユーザーのコンテナ一覧を CRUD 経由で取得
-        containers = get_all_containers(start_naive, end_naive, offset)
+        # 全ユーザーのコンテナ一覧を CRUD 経由で取得（limit を渡す）
+        containers = get_all_containers(start_naive, end_naive, offset=offset, limit=limit)
 
         result = []
         for container in containers:
@@ -287,6 +297,7 @@ def update_application_approval_endpoint(
         )
 
 
+
 # ==========================================
 # 【GET】管理者用: 特定ユーザーのコンテナ一覧取得 (printCheckApprovalページ用)
 # ==========================================
@@ -295,15 +306,23 @@ def get_admin_container_by_user(
     target_user_id: UUID,
     start: datetime, 
     end: datetime, 
-    offset: int, 
+    offset: int = 0,
+    limit: int = Query(20, ge=1, le=1000),  
     current_user: Users = Depends(get_current_user)
 ):
     try:
+        # 管理者権限チェック（必要に応じて）
+        if str(current_user.role) != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="管理者権限が必要です"
+            )
+
         start_naive = start.replace(tzinfo=None) if start.tzinfo else start
         end_naive = end.replace(tzinfo=None) if end.tzinfo else end
 
-        # 既存の get_user_container に target_user_id (UUID文字列) を渡して取得
-        containers = get_user_container(str(target_user_id), start_naive, end_naive, offset)
+        # limit を渡す
+        containers = get_user_container(str(target_user_id), start_naive, end_naive, offset=offset, limit=limit)
 
         result = []
         for container in containers:
@@ -375,4 +394,35 @@ def get_admin_analytics_summary(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"アナリティクス集計データの取得に失敗しました: {str(e)}"
+        )
+    
+
+
+# ==========================================
+# 【POST】管理者用: 複数コンテナ明細一括取得エンドポイント
+# ==========================================
+@router.post("/admin/containers/bulk-details", response_model=List[ContainerDetailResponse])
+def get_admin_containers_bulk_details(
+    payload: BulkContainerDetailsRequest,
+    current_user: Users = Depends(get_current_user)
+):
+    try:
+        # 管理者権限チェック
+        if str(current_user.role) != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="管理者権限が必要です"
+            )
+
+        str_ids = [str(cid) for cid in payload.container_ids]
+        details = get_bulk_admin_container_details(str_ids)
+        return details
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"get_admin_containers_bulk_details Error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"明細の一括取得に失敗しました: {str(e)}"
         )

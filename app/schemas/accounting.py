@@ -92,6 +92,7 @@ class ApplicationCreateResponse(BaseModel):
 class ContainerDetailResponse(BaseModel):
     id: str
     user_id: str
+    user_name: Optional[str] = None  # ★ 追加（デフォルト None のため既存APIに影響なし）
     project_name: str
     category: str
     applied_at: str
@@ -160,3 +161,7 @@ class ExpenseBreakdown(BaseModel):
 class AnalyticsSummaryResponse(BaseModel):
     status_counts: StatusCounts
     expenses: ExpenseBreakdown
+
+# 管理者: 複数コンテナ明細一括取得用スキーマ
+class BulkContainerDetailsRequest(BaseModel):
+    container_ids: List[UUID]
