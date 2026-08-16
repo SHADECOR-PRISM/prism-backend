@@ -160,3 +160,7 @@ class ExpenseBreakdown(BaseModel):
 class AnalyticsSummaryResponse(BaseModel):
     status_counts: StatusCounts
     expenses: ExpenseBreakdown
+
+# 管理者: 複数コンテナ明細一括取得用スキーマ
+class BulkContainerDetailsRequest(BaseModel):
+    container_ids: List[UUID]
