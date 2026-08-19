@@ -68,6 +68,7 @@ def get_container_detail_by_id(
         "applied_at": formatted_date,
         "status": str(header.get("status") or "pending"),
         "total_amount": header.get("total_amount", 0),
+        "version": int(header.get("version") or 1),
         "transportation_details": transport_details,
         "expense_details": expense_details,
     }
@@ -140,6 +141,7 @@ def get_admin_container_detail_by_id(
         "applied_at": formatted_date,
         "status": str(header.get("status") or "pending"),
         "total_amount": header.get("total_amount", 0),
+        "version": int(header.get("version") or 1),
         "transportation_details": transport_details,
         "expense_details": expense_details,
     }
@@ -238,6 +240,7 @@ def get_bulk_admin_container_details(
             "applied_at": formatted_date,
             "status": str(header.get("status") or "pending"),
             "total_amount": header.get("total_amount", 0),
+            "version": int(header.get("version") or 1),
             "transportation_details": trans_map.get(c_id, []) if category == "交通費" else [],
             "expense_details": exp_map.get(c_id, []) if category == "経費" else [],
         })

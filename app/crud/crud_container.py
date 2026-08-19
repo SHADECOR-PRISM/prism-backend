@@ -49,6 +49,7 @@ def get_user_container(
             "applied_at": item.get("applied_at"),
             "status": str(item.get("status") or "pending"),
             "total_amount": item.get("total_amount", 0),
+            "version": int(item.get("version") or 1),
         })
 
     return results
@@ -105,6 +106,7 @@ def get_all_containers(
             "applied_at": item.get("applied_at"),
             "status": str(item.get("status") or "pending"),
             "total_amount": item.get("total_amount", 0),
+            "version": int(item.get("version") or 1),
         })
 
     return results

@@ -58,7 +58,8 @@ def get_container_me(
                 "category": container.get("category"),
                 "applied_at": formatted_date,
                 "status": container.get("status"),
-                "total_amount": container.get("total_amount", 0)
+                "total_amount": container.get("total_amount", 0),
+                "version": container.get("version", 1),
             })
 
         return result
@@ -113,11 +114,14 @@ def update_existing_application(
     current_user: Users = Depends(get_current_user)
 ):
     try:
-        success, message = update_application(payload=request_data)
+        success, message, error_code = update_application(
+            payload=request_data,
+            user_db_id=str(current_user.id),
+        )
 
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=error_code,
                 detail=message
             )
 
@@ -216,7 +220,8 @@ def get_container_all(
                 "category": container.get("category"),
                 "applied_at": formatted_date,
                 "status": container.get("status"),
-                "total_amount": container.get("total_amount", 0)
+                "total_amount": container.get("total_amount", 0),
+                "version": container.get("version", 1),
             })
 
         return result
@@ -241,6 +246,12 @@ def get_admin_container_detail(
     current_user: Users = Depends(get_current_user)
 ):
     try:
+        if str(current_user.role) != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="管理者権限が必要です"
+            )
+
         # 所有者チェックを行わない管理者用 CRUD を呼び出し
         result = get_admin_container_detail_by_id(container_id=str(container_id))
 
@@ -271,14 +282,20 @@ def update_application_approval_endpoint(
     current_user: Users = Depends(get_current_user)
 ):
     try:
-        success, message = update_application_approval(
+        if str(current_user.role) != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="管理者権限が必要です"
+            )
+
+        success, message, error_code = update_application_approval(
             admin_user_db_id=str(current_user.id),
             payload=request_data
         )
 
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=error_code,
                 detail=message
             )
 
@@ -341,7 +358,8 @@ def get_admin_container_by_user(
                 "category": container.get("category"),
                 "applied_at": formatted_date,
                 "status": container.get("status"),
-                "total_amount": container.get("total_amount", 0)
+                "total_amount": container.get("total_amount", 0),
+                "version": container.get("version", 1),
             })
 
         return result

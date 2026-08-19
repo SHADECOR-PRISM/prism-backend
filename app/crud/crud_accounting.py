@@ -86,12 +86,12 @@ def create_application(user_db_id: str, request_data: ApplicationCreateRequest) 
 # ==========================================
 # 2. 既存申請の更新・追記・明細削除および全削除 (追加関数)
 # ==========================================
-def update_application(payload: ApplicationUpdateRequest) -> Tuple[bool, str]:
+def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tuple[bool, str, int]:
     """
     既存申請の更新・追記・削除および全削除を行う CRUD 関数
     
     Returns:
-        Tuple[bool, str]: (処理成功フラグ, レスポンスメッセージ)
+        Tuple[bool, str, int]: (処理成功フラグ, レスポンスメッセージ, HTTPステータスコード)
     """
     container_id_str = str(payload.container_id)
     now_iso = datetime.utcnow().isoformat()
@@ -99,24 +99,31 @@ def update_application(payload: ApplicationUpdateRequest) -> Tuple[bool, str]:
     # 1. コンテナヘッダー (application_header) の存在確認およびステータスチェック
     header_res = (
         supabase.table("application_header")
-        .select("id, status, category")
+        .select("id, user_id, status, category, version")
         .eq("id", container_id_str)
         .execute()
     )
 
     if not header_res.data or not isinstance(header_res.data, list) or len(header_res.data) == 0:
-        return False, "指定された申請が見つかりません。"
+        return False, "指定された申請が見つかりません。", 404
 
     header_data = header_res.data[0]
 
     # ★ Pylanceの型エラーを防ぐため、dict型であることを検証
     if not isinstance(header_data, dict):
-        return False, "データの取得形式が不正です。"
+        return False, "データの取得形式が不正です。", 500
+
+    if str(header_data.get("user_id") or "") != user_db_id:
+        return False, "他人の申請は更新できません。", 403
+
+    current_version = int(header_data.get("version") or 1)
+    if payload.version != current_version:
+        return False, "他ユーザーが先に更新しました。最新データを再取得してください。", 409
 
     # pending（申請中・未承認）以外のステータスは編集不可
     status_val = header_data.get("status")
     if status_val != "pending":
-        return False, "承認済みまたは処理済みの申請は変更できません。"
+        return False, "承認済みまたは処理済みの申請は変更できません。", 400
 
     category_name = header_data.get("category")
     is_transport = category_name == "交通費"
@@ -137,7 +144,7 @@ def update_application(payload: ApplicationUpdateRequest) -> Tuple[bool, str]:
             "id", container_id_str
         ).execute()
 
-        return True, "申請および関連明細を正常に削除しました。"
+        return True, "申請および関連明細を正常に削除しました。", 200
 
     # ----------------------------------------------------
     # 3. 削除指定された既存明細 (deleted_detail_ids) の削除
@@ -193,18 +200,28 @@ def update_application(payload: ApplicationUpdateRequest) -> Tuple[bool, str]:
     # ----------------------------------------------------
     # 5. ヘッダー側の合計金額 (total_amount) を最新に更新
     # ----------------------------------------------------
-    supabase.table("application_header").update(
-        {"total_amount": calculated_total_amount}
-    ).eq("id", container_id_str).execute()
+    header_update_res = (
+        supabase.table("application_header")
+        .update({
+            "total_amount": calculated_total_amount,
+            "version": payload.version + 1,
+        })
+        .eq("id", container_id_str)
+        .eq("version", payload.version)
+        .execute()
+    )
 
-    return True, "申請内容を正常に更新しました。"
+    if not isinstance(header_update_res.data, list) or len(header_update_res.data) == 0:
+        return False, "他ユーザーが先に更新しました。最新データを再取得してください。", 409
+
+    return True, "申請内容を正常に更新しました。", 200
 
 
 
 def update_application_approval(
     admin_user_db_id: str,
     payload: ApplicationApprovalRequest
-) -> Tuple[bool, str]:
+) -> Tuple[bool, str, int]:
     """
     管理者用: 明細カードの承認ステータスを更新し、コンテナ全体のステータスを連動更新する。
     """
@@ -214,17 +231,21 @@ def update_application_approval(
     # 1. コンテナヘッダーの存在確認
     header_res = (
         supabase.table("application_header")
-        .select("id, category")
+        .select("id, category, version")
         .eq("id", container_id_str)
         .execute()
     )
 
     if not header_res.data or not isinstance(header_res.data, list) or len(header_res.data) == 0:
-        return False, "指定された申請が見つかりません。"
+        return False, "指定された申請が見つかりません。", 404
 
     header_data = header_res.data[0]
     if not isinstance(header_data, dict):
-        return False, "データの取得形式が不正です。"
+        return False, "データの取得形式が不正です。", 500
+
+    current_version = int(header_data.get("version") or 1)
+    if payload.version != current_version:
+        return False, "他ユーザーが先に更新しました。最新データを再取得してください。", 409
 
     category_name = header_data.get("category")
     is_transport = category_name == "交通費"
@@ -268,8 +289,17 @@ def update_application_approval(
         "approved_at": now_iso if header_status != "pending" else None,
     }
 
-    supabase.table("application_header").update(
-        header_update_payload
-    ).eq("id", container_id_str).execute()
+    header_update_payload["version"] = payload.version + 1
 
-    return True, "承認ステータスを正常に更新しました。"
+    header_update_res = (
+        supabase.table("application_header")
+        .update(header_update_payload)
+        .eq("id", container_id_str)
+        .eq("version", payload.version)
+        .execute()
+    )
+
+    if not isinstance(header_update_res.data, list) or len(header_update_res.data) == 0:
+        return False, "他ユーザーが先に更新しました。最新データを再取得してください。", 409
+
+    return True, "承認ステータスを正常に更新しました。", 200
