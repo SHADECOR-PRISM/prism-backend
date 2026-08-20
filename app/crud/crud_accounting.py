@@ -86,12 +86,12 @@ def create_application(user_db_id: str, request_data: ApplicationCreateRequest) 
 # ==========================================
 # 2. 既存申請の更新・追記・明細削除および全削除 (追加関数)
 # ==========================================
-def update_application(payload: ApplicationUpdateRequest) -> Tuple[bool, str]:
+def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tuple[bool, str, int]:
     """
     既存申請の更新・追記・削除および全削除を行う CRUD 関数
     
     Returns:
-        Tuple[bool, str]: (処理成功フラグ, レスポンスメッセージ)
+        Tuple[bool, str, int]: (処理成功フラグ, レスポンスメッセージ, HTTPステータスコード)
     """
     container_id_str = str(payload.container_id)
     now_iso = datetime.utcnow().isoformat()
@@ -99,24 +99,39 @@ def update_application(payload: ApplicationUpdateRequest) -> Tuple[bool, str]:
     # 1. コンテナヘッダー (application_header) の存在確認およびステータスチェック
     header_res = (
         supabase.table("application_header")
-        .select("id, status, category")
+        .select("id, user_id, status, category, version")
         .eq("id", container_id_str)
         .execute()
     )
 
     if not header_res.data or not isinstance(header_res.data, list) or len(header_res.data) == 0:
-        return False, "指定された申請が見つかりません。"
+        return False, "指定された申請が見つかりません。", 404
 
     header_data = header_res.data[0]
 
     # ★ Pylanceの型エラーを防ぐため、dict型であることを検証
     if not isinstance(header_data, dict):
-        return False, "データの取得形式が不正です。"
+        return False, "データの取得形式が不正です。", 500
 
-    # pending（申請中・未承認）以外のステータスは編集不可
+    if str(header_data.get("user_id") or "") != user_db_id:
+        return False, "他人の申請は更新できません。", 403
+
+    current_version = int(header_data.get("version") or 1)
+    if payload.version != current_version:
+        return False, "他ユーザーが先に更新しました。最新データを再取得してください。", 409
+
+    # pending: 追加・編集・削除可 / rejected: 削除のみ可 / それ以外: 変更不可
     status_val = header_data.get("status")
-    if status_val != "pending":
-        return False, "承認済みまたは処理済みの申請は変更できません。"
+    has_new_details = any(item.id is None for item in payload.updated_details)
+    has_deletes = bool(payload.deleted_detail_ids) or payload.is_all_deleted
+
+    if status_val == "rejected":
+        if has_new_details:
+            return False, "却下済みの申請に明細を追加することはできません。", 400
+        if not has_deletes:
+            return False, "却下済みの申請は明細の削除のみ可能です。", 400
+    elif status_val != "pending":
+        return False, "承認済みまたは処理済みの申請は変更できません。", 400
 
     category_name = header_data.get("category")
     is_transport = category_name == "交通費"
@@ -137,7 +152,7 @@ def update_application(payload: ApplicationUpdateRequest) -> Tuple[bool, str]:
             "id", container_id_str
         ).execute()
 
-        return True, "申請および関連明細を正常に削除しました。"
+        return True, "申請および関連明細を正常に削除しました。", 200
 
     # ----------------------------------------------------
     # 3. 削除指定された既存明細 (deleted_detail_ids) の削除
@@ -150,61 +165,86 @@ def update_application(payload: ApplicationUpdateRequest) -> Tuple[bool, str]:
 
     # ----------------------------------------------------
     # 4. 明細カードの更新 (UPDATE) または 新規追加 (INSERT)
+    #    rejected の場合は削除のみ許可し、残明細の内容は変更しない
     # ----------------------------------------------------
     calculated_total_amount = 0
 
-    for item in payload.updated_details:
-        calculated_total_amount += item.amount
+    if status_val == "rejected":
+        remaining_res = (
+            supabase.table(detail_table)
+            .select("amount")
+            .eq("header_id", container_id_str)
+            .execute()
+        )
+        remaining_rows = remaining_res.data if isinstance(remaining_res.data, list) else []
+        calculated_total_amount = sum(
+            int(row.get("amount") or 0)
+            for row in remaining_rows
+            if isinstance(row, dict)
+        )
+    else:
+        for item in payload.updated_details:
+            calculated_total_amount += item.amount
 
-        # 共通カラムデータの構築
-        record_data = {
-            "header_id": container_id_str,
-            "usage_date": item.usage_date.isoformat(),
-            "category": item.category,
-            "amount": item.amount,
-            "status": "pending",
-        }
+            # 共通カラムデータの構築
+            record_data = {
+                "header_id": container_id_str,
+                "usage_date": item.usage_date.isoformat(),
+                "category": item.category,
+                "amount": item.amount,
+                "status": "pending",
+            }
 
-        # カテゴリ固有データのマッピング
-        if is_transport:
-            record_data.update({
-                "departure": item.departure,
-                "arrival": item.arrival,
-                "is_round_trip": item.is_round_trip if item.is_round_trip is not None else True,
-            })
-        else:
-            record_data.update({
-                "remark": item.remark,
-            })
+            # カテゴリ固有データのマッピング
+            if is_transport:
+                record_data.update({
+                    "departure": item.departure,
+                    "arrival": item.arrival,
+                    "is_round_trip": item.is_round_trip if item.is_round_trip is not None else True,
+                })
+            else:
+                record_data.update({
+                    "remark": item.remark,
+                })
 
-        if item.id is not None:
-            # 既存明細の更新 (UPDATE)
-            supabase.table(detail_table).update(record_data).eq(
-                "id", str(item.id)
-            ).execute()
-        else:
-            # 新規追加明細の登録 (INSERT) - UUIDとcreated_atを新規生成
-            record_data.update({
-                "id": str(uuid4()),
-                "created_at": now_iso,
-            })
-            supabase.table(detail_table).insert(record_data).execute()
+            if item.id is not None:
+                # 既存明細の更新 (UPDATE)
+                supabase.table(detail_table).update(record_data).eq(
+                    "id", str(item.id)
+                ).execute()
+            else:
+                # 新規追加明細の登録 (INSERT) - UUIDとcreated_atを新規生成
+                record_data.update({
+                    "id": str(uuid4()),
+                    "created_at": now_iso,
+                })
+                supabase.table(detail_table).insert(record_data).execute()
 
     # ----------------------------------------------------
     # 5. ヘッダー側の合計金額 (total_amount) を最新に更新
     # ----------------------------------------------------
-    supabase.table("application_header").update(
-        {"total_amount": calculated_total_amount}
-    ).eq("id", container_id_str).execute()
+    header_update_res = (
+        supabase.table("application_header")
+        .update({
+            "total_amount": calculated_total_amount,
+            "version": payload.version + 1,
+        })
+        .eq("id", container_id_str)
+        .eq("version", payload.version)
+        .execute()
+    )
 
-    return True, "申請内容を正常に更新しました。"
+    if not isinstance(header_update_res.data, list) or len(header_update_res.data) == 0:
+        return False, "他ユーザーが先に更新しました。最新データを再取得してください。", 409
+
+    return True, "申請内容を正常に更新しました。", 200
 
 
 
 def update_application_approval(
     admin_user_db_id: str,
     payload: ApplicationApprovalRequest
-) -> Tuple[bool, str]:
+) -> Tuple[bool, str, int]:
     """
     管理者用: 明細カードの承認ステータスを更新し、コンテナ全体のステータスを連動更新する。
     """
@@ -214,17 +254,21 @@ def update_application_approval(
     # 1. コンテナヘッダーの存在確認
     header_res = (
         supabase.table("application_header")
-        .select("id, category")
+        .select("id, category, version")
         .eq("id", container_id_str)
         .execute()
     )
 
     if not header_res.data or not isinstance(header_res.data, list) or len(header_res.data) == 0:
-        return False, "指定された申請が見つかりません。"
+        return False, "指定された申請が見つかりません。", 404
 
     header_data = header_res.data[0]
     if not isinstance(header_data, dict):
-        return False, "データの取得形式が不正です。"
+        return False, "データの取得形式が不正です。", 500
+
+    current_version = int(header_data.get("version") or 1)
+    if payload.version != current_version:
+        return False, "他ユーザーが先に更新しました。最新データを再取得してください。", 409
 
     category_name = header_data.get("category")
     is_transport = category_name == "交通費"
@@ -268,8 +312,17 @@ def update_application_approval(
         "approved_at": now_iso if header_status != "pending" else None,
     }
 
-    supabase.table("application_header").update(
-        header_update_payload
-    ).eq("id", container_id_str).execute()
+    header_update_payload["version"] = payload.version + 1
 
-    return True, "承認ステータスを正常に更新しました。"
+    header_update_res = (
+        supabase.table("application_header")
+        .update(header_update_payload)
+        .eq("id", container_id_str)
+        .eq("version", payload.version)
+        .execute()
+    )
+
+    if not isinstance(header_update_res.data, list) or len(header_update_res.data) == 0:
+        return False, "他ユーザーが先に更新しました。最新データを再取得してください。", 409
+
+    return True, "承認ステータスを正常に更新しました。", 200

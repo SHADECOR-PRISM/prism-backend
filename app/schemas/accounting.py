@@ -14,6 +14,7 @@ class Container(BaseModel):
     applied_at: str
     status: Literal["pending", "approved", "rejected"]
     total_amount: int
+    version: int
 
 # ==========================================
 # 1. 交通費明細 (Base / Read / Write)
@@ -98,6 +99,7 @@ class ContainerDetailResponse(BaseModel):
     applied_at: str
     status: Literal["pending", "approved", "rejected"]
     total_amount: int
+    version: int
     transportation_details: List[TransportDetailResponse] = []
     expense_details: List[ExpenseDetailResponse] = []
 
@@ -124,6 +126,7 @@ class UpdateDetailItem(BaseModel):
 # 更新APIリクエストボディ
 class ApplicationUpdateRequest(BaseModel):
     container_id: UUID
+    version: int = Field(ge=1)
     updated_details: List[UpdateDetailItem] = []
     deleted_detail_ids: List[UUID] = []
     is_all_deleted: bool = False
@@ -143,6 +146,7 @@ class CardStatusUpdateItem(BaseModel):
 
 class ApplicationApprovalRequest(BaseModel):
     container_id: UUID
+    version: int = Field(ge=1)
     details: List[CardStatusUpdateItem]
 
 
