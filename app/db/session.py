@@ -1,6 +1,9 @@
 from supabase import create_client, Client
 from supabase.lib.client_options import SyncClientOptions
 import app.core.config as config
+from app.core.supabase_retry import install_httpx_retry
+
+install_httpx_retry()
 
 # 通信タイムアウトおよび接続設定オプション
 options = SyncClientOptions(
