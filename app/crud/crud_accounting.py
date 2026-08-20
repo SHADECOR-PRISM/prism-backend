@@ -120,9 +120,17 @@ def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tu
     if payload.version != current_version:
         return False, "他ユーザーが先に更新しました。最新データを再取得してください。", 409
 
-    # pending（申請中・未承認）以外のステータスは編集不可
+    # pending: 追加・編集・削除可 / rejected: 削除のみ可 / それ以外: 変更不可
     status_val = header_data.get("status")
-    if status_val != "pending":
+    has_new_details = any(item.id is None for item in payload.updated_details)
+    has_deletes = bool(payload.deleted_detail_ids) or payload.is_all_deleted
+
+    if status_val == "rejected":
+        if has_new_details:
+            return False, "却下済みの申請に明細を追加することはできません。", 400
+        if not has_deletes:
+            return False, "却下済みの申請は明細の削除のみ可能です。", 400
+    elif status_val != "pending":
         return False, "承認済みまたは処理済みの申請は変更できません。", 400
 
     category_name = header_data.get("category")
@@ -157,45 +165,60 @@ def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tu
 
     # ----------------------------------------------------
     # 4. 明細カードの更新 (UPDATE) または 新規追加 (INSERT)
+    #    rejected の場合は削除のみ許可し、残明細の内容は変更しない
     # ----------------------------------------------------
     calculated_total_amount = 0
 
-    for item in payload.updated_details:
-        calculated_total_amount += item.amount
+    if status_val == "rejected":
+        remaining_res = (
+            supabase.table(detail_table)
+            .select("amount")
+            .eq("header_id", container_id_str)
+            .execute()
+        )
+        remaining_rows = remaining_res.data if isinstance(remaining_res.data, list) else []
+        calculated_total_amount = sum(
+            int(row.get("amount") or 0)
+            for row in remaining_rows
+            if isinstance(row, dict)
+        )
+    else:
+        for item in payload.updated_details:
+            calculated_total_amount += item.amount
 
-        # 共通カラムデータの構築
-        record_data = {
-            "header_id": container_id_str,
-            "usage_date": item.usage_date.isoformat(),
-            "category": item.category,
-            "amount": item.amount,
-            "status": "pending",
-        }
+            # 共通カラムデータの構築
+            record_data = {
+                "header_id": container_id_str,
+                "usage_date": item.usage_date.isoformat(),
+                "category": item.category,
+                "amount": item.amount,
+                "status": "pending",
+            }
 
-        # カテゴリ固有データのマッピング
-        if is_transport:
-            record_data.update({
-                "departure": item.departure,
-                "arrival": item.arrival,
-                "is_round_trip": item.is_round_trip if item.is_round_trip is not None else True,
-            })
-        else:
-            record_data.update({
-                "remark": item.remark,
-            })
+            # カテゴリ固有データのマッピング
+            if is_transport:
+                record_data.update({
+                    "departure": item.departure,
+                    "arrival": item.arrival,
+                    "is_round_trip": item.is_round_trip if item.is_round_trip is not None else True,
+                })
+            else:
+                record_data.update({
+                    "remark": item.remark,
+                })
 
-        if item.id is not None:
-            # 既存明細の更新 (UPDATE)
-            supabase.table(detail_table).update(record_data).eq(
-                "id", str(item.id)
-            ).execute()
-        else:
-            # 新規追加明細の登録 (INSERT) - UUIDとcreated_atを新規生成
-            record_data.update({
-                "id": str(uuid4()),
-                "created_at": now_iso,
-            })
-            supabase.table(detail_table).insert(record_data).execute()
+            if item.id is not None:
+                # 既存明細の更新 (UPDATE)
+                supabase.table(detail_table).update(record_data).eq(
+                    "id", str(item.id)
+                ).execute()
+            else:
+                # 新規追加明細の登録 (INSERT) - UUIDとcreated_atを新規生成
+                record_data.update({
+                    "id": str(uuid4()),
+                    "created_at": now_iso,
+                })
+                supabase.table(detail_table).insert(record_data).execute()
 
     # ----------------------------------------------------
     # 5. ヘッダー側の合計金額 (total_amount) を最新に更新
