@@ -56,8 +56,8 @@ def login(userData: dict, response: Response):
     key="refresh_token",
     value=auth_response.session.refresh_token,
     httponly=True,
-    secure=False,  # 本番環境ではTrue TODO
-    samesite="lax", 
+    secure=config.COOKIE_SECURE,
+    samesite=config.COOKIE_SAMESITE,
     max_age=60*60
   )
 
@@ -90,8 +90,8 @@ def auth_refresh(response: Response, refresh_token: Optional[str] = Cookie(None)
     key="refresh_token",
     value=auth_response.session.refresh_token,
     httponly=True,
-    secure=False,  # 本番環境ではTrue TODO
-    samesite="lax", 
+    secure=config.COOKIE_SECURE,
+    samesite=config.COOKIE_SAMESITE,
     max_age=60*60
   )
   
@@ -104,6 +104,6 @@ def auth_refresh(response: Response, refresh_token: Optional[str] = Cookie(None)
 
 @router.post("/logout")
 def logout(response: Response):
-  response.delete_cookie("refresh_token")
+  response.delete_cookie("refresh_token", secure=config.COOKIE_SECURE, samesite=config.COOKIE_SAMESITE)
   sign_out()
   return None
