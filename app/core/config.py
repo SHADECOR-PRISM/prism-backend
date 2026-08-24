@@ -8,5 +8,10 @@ SUPABASE_URL = str(os.getenv('SUPABASE_URL'))
 SUPABASE_KEY = str(os.getenv('SUPABASE_KEY'))
 ADD_EMAIL_ADRESS = str(os.getenv('ADD_EMAIL_ADRESS'))
 
+# Cookie属性（本番のみCloud Run環境変数で上書きする。未設定時は開発環境のデフォルト挙動を維持）
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
+
 # local development
-FRONTEND_URL="http://localhost:3000"
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+FETCH_LIMIT = 10
