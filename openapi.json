@@ -8,7 +8,7 @@
     "/login": {
       "post": {
         "summary": "Login",
-        "operationId": "login_login_post",
+        "operationId": "login",
         "requestBody": {
           "content": {
             "application/json": {
@@ -48,7 +48,7 @@
     "/refresh": {
       "post": {
         "summary": "Auth Refresh",
-        "operationId": "auth_refresh_refresh_post",
+        "operationId": "authRefresh",
         "parameters": [
           {
             "name": "refresh_token",
@@ -94,7 +94,7 @@
     "/logout": {
       "post": {
         "summary": "Logout",
-        "operationId": "logout_logout_post",
+        "operationId": "logout",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -111,7 +111,7 @@
       "get": {
         "summary": "Get Me",
         "description": "ログイン中のユーザープロフィール情報を取得するエンドポイント",
-        "operationId": "get_me_users_me_get",
+        "operationId": "getMe",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -135,7 +135,7 @@
       "get": {
         "summary": "Get Admin Users",
         "description": "【管理者用】登録ユーザー一覧を取得するエンドポイント",
-        "operationId": "get_admin_users_admin_users_get",
+        "operationId": "getAdminUsers",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -146,7 +146,7 @@
                     "$ref": "#/components/schemas/AdminUserItem"
                   },
                   "type": "array",
-                  "title": "Response Get Admin Users Admin Users Get"
+                  "title": "Response Getadminusers"
                 }
               }
             }
@@ -165,7 +165,7 @@
           "projects"
         ],
         "summary": "Read Projects",
-        "operationId": "read_projects_projects_get",
+        "operationId": "readProjects",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -176,7 +176,7 @@
                     "$ref": "#/components/schemas/ProjectRead"
                   },
                   "type": "array",
-                  "title": "Response Read Projects Projects Get"
+                  "title": "Response Readprojects"
                 }
               }
             }
@@ -192,7 +192,7 @@
     "/container/me": {
       "get": {
         "summary": "Get Container Me",
-        "operationId": "get_container_me_container_me_get",
+        "operationId": "getContainerMe",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -239,7 +239,7 @@
                   "items": {
                     "$ref": "#/components/schemas/Container"
                   },
-                  "title": "Response Get Container Me Container Me Get"
+                  "title": "Response Getcontainerme"
                 }
               }
             }
@@ -260,7 +260,7 @@
     "/accounting/requests": {
       "put": {
         "summary": "Update Existing Application",
-        "operationId": "update_existing_application_accounting_requests_put",
+        "operationId": "updateApplication",
         "requestBody": {
           "content": {
             "application/json": {
@@ -301,7 +301,7 @@
       },
       "post": {
         "summary": "Create New Application",
-        "operationId": "create_new_application_accounting_requests_post",
+        "operationId": "createApplication",
         "requestBody": {
           "content": {
             "application/json": {
@@ -344,7 +344,7 @@
     "/container/{container_id}": {
       "get": {
         "summary": "Get Container Detail",
-        "operationId": "get_container_detail_container__container_id__get",
+        "operationId": "getContainerDetail",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -389,7 +389,7 @@
     "/admin/container/all": {
       "get": {
         "summary": "Get Container All",
-        "operationId": "get_container_all_admin_container_all_get",
+        "operationId": "getAdminContainerAll",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -449,7 +449,7 @@
                   "items": {
                     "$ref": "#/components/schemas/Container"
                   },
-                  "title": "Response Get Container All Admin Container All Get"
+                  "title": "Response Getadmincontainerall"
                 }
               }
             }
@@ -470,7 +470,7 @@
     "/admin/container/{container_id}": {
       "get": {
         "summary": "Get Admin Container Detail",
-        "operationId": "get_admin_container_detail_admin_container__container_id__get",
+        "operationId": "getAdminContainerDetail",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -515,7 +515,7 @@
     "/admin/accounting/requests/approval": {
       "put": {
         "summary": "Update Application Approval Endpoint",
-        "operationId": "update_application_approval_endpoint_admin_accounting_requests_approval_put",
+        "operationId": "updateApplicationApproval",
         "requestBody": {
           "content": {
             "application/json": {
@@ -558,7 +558,7 @@
     "/admin/container/user/{target_user_id}": {
       "get": {
         "summary": "Get Admin Container By User",
-        "operationId": "get_admin_container_by_user_admin_container_user__target_user_id__get",
+        "operationId": "getAdminContainerByUser",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -628,7 +628,7 @@
                   "items": {
                     "$ref": "#/components/schemas/Container"
                   },
-                  "title": "Response Get Admin Container By User Admin Container User  Target User Id  Get"
+                  "title": "Response Getadmincontainerbyuser"
                 }
               }
             }
@@ -649,7 +649,7 @@
     "/admin/analytics/summary": {
       "get": {
         "summary": "Get Admin Analytics Summary",
-        "operationId": "get_admin_analytics_summary_admin_analytics_summary_get",
+        "operationId": "getAdminAnalyticsSummary",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -704,7 +704,7 @@
     "/admin/containers/bulk-details": {
       "post": {
         "summary": "Get Admin Containers Bulk Details",
-        "operationId": "get_admin_containers_bulk_details_admin_containers_bulk_details_post",
+        "operationId": "getAdminContainersBulkDetails",
         "requestBody": {
           "content": {
             "application/json": {
@@ -725,7 +725,7 @@
                     "$ref": "#/components/schemas/ContainerDetailResponse"
                   },
                   "type": "array",
-                  "title": "Response Get Admin Containers Bulk Details Admin Containers Bulk Details Post"
+                  "title": "Response Getadmincontainersbulkdetails"
                 }
               }
             }

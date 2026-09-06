@@ -8,7 +8,7 @@ from app.crud.crud_users import get_all_users
 router = APIRouter()
 
 
-@router.get("/users/me", response_model=UserProfile)
+@router.get("/users/me", response_model=UserProfile, operation_id="getMe")
 def get_me(current_user: Users = Depends(get_current_user)):
     """
     ログイン中のユーザープロフィール情報を取得するエンドポイント
@@ -31,7 +31,7 @@ def get_me(current_user: Users = Depends(get_current_user)):
         )
     
 
-@router.get("/admin/users", response_model=list[AdminUserItem])
+@router.get("/admin/users", response_model=list[AdminUserItem], operation_id="getAdminUsers")
 def get_admin_users(current_user: Users = Depends(get_current_user)):
     """
     【管理者用】登録ユーザー一覧を取得するエンドポイント

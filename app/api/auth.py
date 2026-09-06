@@ -32,7 +32,7 @@ def _role_from_access_token(access_token: str) -> str:
   return role_val
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, operation_id="login")
 def login(userData: dict, response: Response):
   user_id = str(userData.get("userId"))
   password = str(userData.get("password"))
@@ -68,7 +68,7 @@ def login(userData: dict, response: Response):
     "role": role_val
   }
 
-@router.post("/refresh", response_model=Token)
+@router.post("/refresh", response_model=Token, operation_id="authRefresh")
 def auth_refresh(response: Response, refresh_token: Optional[str] = Cookie(None)):
   if not refresh_token:
     raise HTTPException(status_code=401, detail="Refresh token missing")
@@ -102,7 +102,7 @@ def auth_refresh(response: Response, refresh_token: Optional[str] = Cookie(None)
     "role": role_val
   }
 
-@router.post("/logout")
+@router.post("/logout", operation_id="logout")
 def logout(response: Response):
   response.delete_cookie("refresh_token", secure=config.COOKIE_SECURE, samesite=config.COOKIE_SAMESITE)
   sign_out()
