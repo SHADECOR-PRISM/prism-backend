@@ -159,7 +159,10 @@ def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tu
     # ----------------------------------------------------
     if payload.deleted_detail_ids:
         deleted_ids_str = [str(uid) for uid in payload.deleted_detail_ids]
-        supabase.table(detail_table).delete().in_(
+        # header_id も条件に含め、他コンテナに属する明細IDが紛れ込んでいても削除されないようにする
+        supabase.table(detail_table).delete().eq(
+            "header_id", container_id_str
+        ).in_(
             "id", deleted_ids_str
         ).execute()
 
@@ -209,8 +212,11 @@ def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tu
 
             if item.id is not None:
                 # 既存明細の更新 (UPDATE)
+                # header_id も条件に含め、他コンテナに属する明細IDが紛れ込んでいても更新されないようにする
                 supabase.table(detail_table).update(record_data).eq(
                     "id", str(item.id)
+                ).eq(
+                    "header_id", container_id_str
                 ).execute()
             else:
                 # 新規追加明細の登録 (INSERT) - UUIDとcreated_atを新規生成
@@ -275,10 +281,11 @@ def update_application_approval(
     detail_table = "transportation_detail" if is_transport else "expense_detail"
 
     # 2. 各明細カードの status を更新
+    # header_id も条件に含め、他コンテナに属する明細IDが紛れ込んでいても更新されないようにする
     for item in payload.details:
         supabase.table(detail_table).update({
             "status": item.status
-        }).eq("id", str(item.id)).execute()
+        }).eq("id", str(item.id)).eq("header_id", container_id_str).execute()
 
     # 3. コンテナに紐づく全明細のステータスを取得して親（ヘッダー）のステータスを自動判定
     all_details_res = (
