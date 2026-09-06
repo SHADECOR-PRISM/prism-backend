@@ -14,10 +14,12 @@ async def global_exception_handler(request: Request, exc: Exception):
         if is_network_error
         else status.HTTP_500_INTERNAL_SERVER_ERROR
     )
+    # 例外の詳細はサーバー側のログにのみ残し、クライアントへは一般的なメッセージのみ返す
+    # (内部実装の詳細・スタック情報がレスポンスとして漏洩するのを防ぐため)
     detail = (
         "認証サーバーとの通信に失敗しました。時間をおいて再試行してください。"
         if is_network_error
-        else f"Internal Server Error: {str(exc)}"
+        else "Internal Server Error"
     )
 
     return JSONResponse(
