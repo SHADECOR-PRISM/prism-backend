@@ -26,7 +26,7 @@ router = APIRouter()
 # ==========================================
 # 【GET】コンテナ一覧取得エンドポイント (logページ)
 # ==========================================
-@router.get("/container/me", response_model=list[Container])
+@router.get("/container/me", response_model=list[Container], operation_id="getContainerMe")
 def get_container_me(
     start: datetime, 
     end: datetime, 
@@ -77,7 +77,7 @@ def get_container_me(
 # ==========================================
 # 【POST】新規申請登録用エンドポイント
 # ==========================================
-@router.post("/accounting/requests", response_model=ApplicationCreateResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/accounting/requests", response_model=ApplicationCreateResponse, status_code=status.HTTP_201_CREATED, operation_id="createApplication")
 def create_new_application(
     request_data: ApplicationCreateRequest,
     current_user: Users = Depends(get_current_user)
@@ -108,7 +108,7 @@ def create_new_application(
 # ==========================================
 # 【PUT】既存申請の更新・追記・削除用エンドポイント 
 # ==========================================
-@router.put("/accounting/requests", response_model=ApplicationUpdateResponse)
+@router.put("/accounting/requests", response_model=ApplicationUpdateResponse, operation_id="updateApplication")
 def update_existing_application(
     request_data: ApplicationUpdateRequest,
     current_user: Users = Depends(get_current_user)
@@ -144,7 +144,7 @@ def update_existing_application(
 # ==========================================
 # 【GET】コンテナ詳細取得エンドポイント (logDetailページ)
 # ==========================================
-@router.get("/container/{container_id}", response_model=ContainerDetailResponse)
+@router.get("/container/{container_id}", response_model=ContainerDetailResponse, operation_id="getContainerDetail")
 def get_container_detail(
     container_id: UUID,
     current_user: Users = Depends(get_current_user)
@@ -181,7 +181,7 @@ def get_container_detail(
 # ==========================================
 # 【GET】全ユーザーコンテナ一覧取得エンドポイント (管理者用 approvalページ / 帳票全体出力用) 
 # ==========================================
-@router.get("/admin/container/all", response_model=list[Container])
+@router.get("/admin/container/all", response_model=list[Container], operation_id="getAdminContainerAll")
 def get_container_all(
     start: datetime, 
     end: datetime, 
@@ -240,7 +240,7 @@ def get_container_all(
 # ==========================================
 # 【GET】管理者用 コンテナ詳細取得エンドポイント
 # ==========================================
-@router.get("/admin/container/{container_id}", response_model=ContainerDetailResponse)
+@router.get("/admin/container/{container_id}", response_model=ContainerDetailResponse, operation_id="getAdminContainerDetail")
 def get_admin_container_detail(
     container_id: UUID,
     current_user: Users = Depends(get_current_user)
@@ -276,7 +276,7 @@ def get_admin_container_detail(
 # ==========================================
 # 【PUT】管理者用 承認ステータス更新エンドポイント
 # ==========================================
-@router.put("/admin/accounting/requests/approval", response_model=ApplicationUpdateResponse)
+@router.put("/admin/accounting/requests/approval", response_model=ApplicationUpdateResponse, operation_id="updateApplicationApproval")
 def update_application_approval_endpoint(
     request_data: ApplicationApprovalRequest,
     current_user: Users = Depends(get_current_user)
@@ -318,7 +318,7 @@ def update_application_approval_endpoint(
 # ==========================================
 # 【GET】管理者用: 特定ユーザーのコンテナ一覧取得 (printCheckApprovalページ用)
 # ==========================================
-@router.get("/admin/container/user/{target_user_id}", response_model=list[Container])
+@router.get("/admin/container/user/{target_user_id}", response_model=list[Container], operation_id="getAdminContainerByUser")
 def get_admin_container_by_user(
     target_user_id: UUID,
     start: datetime, 
@@ -378,7 +378,7 @@ def get_admin_container_by_user(
 # ==========================================
 # 【GET】管理者用: アナリティクス集計データ取得エンドポイント
 # ==========================================
-@router.get("/admin/analytics/summary", response_model=AnalyticsSummaryResponse)
+@router.get("/admin/analytics/summary", response_model=AnalyticsSummaryResponse, operation_id="getAdminAnalyticsSummary")
 def get_admin_analytics_summary(
     start: datetime,
     end: datetime,
@@ -419,7 +419,7 @@ def get_admin_analytics_summary(
 # ==========================================
 # 【POST】管理者用: 複数コンテナ明細一括取得エンドポイント
 # ==========================================
-@router.post("/admin/containers/bulk-details", response_model=List[ContainerDetailResponse])
+@router.post("/admin/containers/bulk-details", response_model=List[ContainerDetailResponse], operation_id="getAdminContainersBulkDetails")
 def get_admin_containers_bulk_details(
     payload: BulkContainerDetailsRequest,
     current_user: Users = Depends(get_current_user)
