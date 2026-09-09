@@ -4,11 +4,12 @@ from app.db.session import supabase
 
 
 def get_user_container(
-    user_db_id: str, 
-    start: datetime, 
-    end: datetime, 
-    offset: int, 
-    limit: int = 20
+    user_db_id: str,
+    start: datetime,
+    end: datetime,
+    offset: int,
+    limit: int = 20,
+    status: str | None = None
 ) -> List[Dict[str, Any]]:
     """
     log ページ（コンテナ一覧）に必要なデータセットを取得する。
@@ -18,12 +19,19 @@ def get_user_container(
     end_str = end.isoformat()
 
     # application_header (単数形) に修正
-    response = (
+    query = (
         supabase.table("application_header")
         .select("*, projects(name)")
         .eq("user_id", user_db_id)
         .gte("applied_at", start_str)
         .lte("applied_at", end_str)
+    )
+
+    if status:
+        query = query.eq("status", status)
+
+    response = (
+        query
         .order("applied_at", desc=True)
         .range(offset, offset + limit - 1)
         .execute()
@@ -57,10 +65,12 @@ def get_user_container(
 
 
 def get_all_containers(
-    start: datetime, 
-    end: datetime, 
-    offset: int, 
-    limit: int = 20
+    start: datetime,
+    end: datetime,
+    offset: int,
+    limit: int = 20,
+    status: str | None = None,
+    user_id: str | None = None
 ) -> List[Dict[str, Any]]:
     """
     admin approval ページ（全ユーザーのコンテナ一覧）に必要なデータセットを取得する。
@@ -69,11 +79,22 @@ def get_all_containers(
     end_str = end.isoformat()
 
     # 💡 users:user_id(user_id) を追加して users テーブルの user_id (例: usr00001) を取得
-    response = (
+    query = (
         supabase.table("application_header")
         .select("*, projects(name), users:user_id(user_id)")
         .gte("applied_at", start_str)
         .lte("applied_at", end_str)
+    )
+
+    if status:
+        query = query.eq("status", status)
+
+    # application_header.user_id は users テーブルへの外部キー (UUID)
+    if user_id:
+        query = query.eq("user_id", user_id)
+
+    response = (
+        query
         .order("applied_at", desc=True)
         .range(offset, offset + limit - 1)
         .execute()
