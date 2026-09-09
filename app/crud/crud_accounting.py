@@ -1,8 +1,28 @@
 from uuid import uuid4
 from datetime import datetime
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 from app.db.session import supabase
 from app.schemas.accounting import ApplicationCreateRequest, ApplicationUpdateRequest, ApplicationApprovalRequest
+
+
+def _get_detail_ids_with_status(
+    detail_table: str,
+    header_id: str,
+    status: Optional[str] = None,
+    ids: Optional[List[str]] = None,
+) -> set:
+    """
+    指定コンテナ（header_id）配下の明細のうち、指定ステータス（省略時は全件）に
+    該当する明細IDの集合をDBから取得する共通ヘルパー。
+    承認済み明細を削除から保護するガード処理で重複していたクエリを集約したもの。
+    """
+    query = supabase.table(detail_table).select("id").eq("header_id", header_id)
+    if status is not None:
+        query = query.eq("status", status)
+    if ids is not None:
+        query = query.in_("id", ids)
+    res = query.execute()
+    return {str(row.get("id")) for row in (res.data or []) if isinstance(row, dict)}
 
 
 def _calculate_header_status(statuses: list) -> str:
@@ -155,12 +175,27 @@ def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tu
 
     # ----------------------------------------------------
     # 2. 全削除 (is_all_deleted == True) の場合
+    #    承認済み明細を1件でも含む場合は全削除を許可しない
+    #    （UI側の canDeleteCard でも承認済み明細は削除不可の想定だが、API側でも二重に防御する）
+    #    事前チェック（分かりやすいエラーメッセージ用）に加え、DELETE自体にも
+    #    .neq("status", "approved") を付与し、チェックと削除の間に別リクエストで
+    #    承認された場合でもDB側で確実に保護する（TOCTOUレース対策）
     # ----------------------------------------------------
     if payload.is_all_deleted:
-        # 関連明細カードの全削除
+        if _get_detail_ids_with_status(detail_table, container_id_str, "approved"):
+            return False, "承認済みの明細を含む申請は全削除できません。", 400
+
+        # 関連明細カードの全削除（承認済みは対象外）
         supabase.table(detail_table).delete().eq(
             "header_id", container_id_str
+        ).neq(
+            "status", "approved"
         ).execute()
+
+        # レース発生時（チェック後に他リクエストで承認された場合）の保護:
+        # 明細が削除しきれず残っていればヘッダーは削除せず中断する
+        if _get_detail_ids_with_status(detail_table, container_id_str):
+            return False, "承認済みの明細が追加されたため、全削除を中断しました。最新データを再取得してください。", 409
 
         # コンテナヘッダー自体の削除
         supabase.table("application_header").delete().eq(
@@ -171,14 +206,21 @@ def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tu
 
     # ----------------------------------------------------
     # 3. 削除指定された既存明細 (deleted_detail_ids) の削除
+    #    承認済み明細は削除を許可しない（DELETE自体にも .neq を付与しレース対策）
     # ----------------------------------------------------
     if payload.deleted_detail_ids:
         deleted_ids_str = [str(uid) for uid in payload.deleted_detail_ids]
+
+        if _get_detail_ids_with_status(detail_table, container_id_str, "approved", ids=deleted_ids_str):
+            return False, "承認済みの明細は削除できません。", 400
+
         # header_id も条件に含め、他コンテナに属する明細IDが紛れ込んでいても削除されないようにする
         supabase.table(detail_table).delete().eq(
             "header_id", container_id_str
         ).in_(
             "id", deleted_ids_str
+        ).neq(
+            "status", "approved"
         ).execute()
 
     # ----------------------------------------------------
