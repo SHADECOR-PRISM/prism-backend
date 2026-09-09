@@ -1,8 +1,45 @@
 from uuid import uuid4
 from datetime import datetime
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 from app.db.session import supabase
 from app.schemas.accounting import ApplicationCreateRequest, ApplicationUpdateRequest, ApplicationApprovalRequest
+
+
+def _get_detail_ids_with_status(
+    detail_table: str,
+    header_id: str,
+    status: Optional[str] = None,
+    ids: Optional[List[str]] = None,
+) -> set:
+    """
+    指定コンテナ（header_id）配下の明細のうち、指定ステータス（省略時は全件）に
+    該当する明細IDの集合をDBから取得する共通ヘルパー。
+    承認済み明細を削除から保護するガード処理で重複していたクエリを集約したもの。
+    """
+    query = supabase.table(detail_table).select("id").eq("header_id", header_id)
+    if status is not None:
+        query = query.eq("status", status)
+    if ids is not None:
+        query = query.in_("id", ids)
+    res = query.execute()
+    return {str(row.get("id")) for row in (res.data or []) if isinstance(row, dict)}
+
+
+def _calculate_header_status(statuses: list) -> str:
+    """
+    明細ステータスの一覧から、親コンテナ（application_header）の
+    ステータスを判定する共通ロジック。
+    - 全て approved -> approved
+    - 1つでも rejected があり pending がない -> rejected (または部分却下)
+    - pending が残っている -> pending
+    """
+    if all(s == "approved" for s in statuses):
+        return "approved"
+    elif any(s == "rejected" for s in statuses) and not any(s == "pending" for s in statuses):
+        return "rejected"
+    else:
+        return "pending"
+
 
 # ==========================================
 # 1. 新規申請登録 (既存の関数)
@@ -120,16 +157,14 @@ def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tu
     if payload.version != current_version:
         return False, "他ユーザーが先に更新しました。最新データを再取得してください。", 409
 
-    # pending: 追加・編集・削除可 / rejected: 削除のみ可 / それ以外: 変更不可
+    # pending: 追加・編集・削除可 / rejected: 削除・既存明細の編集（再申請）可、新規追加のみ不可 / それ以外: 変更不可
     status_val = header_data.get("status")
     has_new_details = any(item.id is None for item in payload.updated_details)
-    has_deletes = bool(payload.deleted_detail_ids) or payload.is_all_deleted
 
     if status_val == "rejected":
         if has_new_details:
-            return False, "却下済みの申請に明細を追加することはできません。", 400
-        if not has_deletes:
-            return False, "却下済みの申請は明細の削除のみ可能です。", 400
+            return False, "却下済みの申請に新規の明細を追加することはできません。", 400
+        # 明細の削除・既存明細の編集（再申請）は許可する
     elif status_val != "pending":
         return False, "承認済みまたは処理済みの申請は変更できません。", 400
 
@@ -140,12 +175,27 @@ def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tu
 
     # ----------------------------------------------------
     # 2. 全削除 (is_all_deleted == True) の場合
+    #    承認済み明細を1件でも含む場合は全削除を許可しない
+    #    （UI側の canDeleteCard でも承認済み明細は削除不可の想定だが、API側でも二重に防御する）
+    #    事前チェック（分かりやすいエラーメッセージ用）に加え、DELETE自体にも
+    #    .neq("status", "approved") を付与し、チェックと削除の間に別リクエストで
+    #    承認された場合でもDB側で確実に保護する（TOCTOUレース対策）
     # ----------------------------------------------------
     if payload.is_all_deleted:
-        # 関連明細カードの全削除
+        if _get_detail_ids_with_status(detail_table, container_id_str, "approved"):
+            return False, "承認済みの明細を含む申請は全削除できません。", 400
+
+        # 関連明細カードの全削除（承認済みは対象外）
         supabase.table(detail_table).delete().eq(
             "header_id", container_id_str
+        ).neq(
+            "status", "approved"
         ).execute()
+
+        # レース発生時（チェック後に他リクエストで承認された場合）の保護:
+        # 明細が削除しきれず残っていればヘッダーは削除せず中断する
+        if _get_detail_ids_with_status(detail_table, container_id_str):
+            return False, "承認済みの明細が追加されたため、全削除を中断しました。最新データを再取得してください。", 409
 
         # コンテナヘッダー自体の削除
         supabase.table("application_header").delete().eq(
@@ -156,83 +206,111 @@ def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tu
 
     # ----------------------------------------------------
     # 3. 削除指定された既存明細 (deleted_detail_ids) の削除
+    #    承認済み明細は削除を許可しない（DELETE自体にも .neq を付与しレース対策）
     # ----------------------------------------------------
     if payload.deleted_detail_ids:
         deleted_ids_str = [str(uid) for uid in payload.deleted_detail_ids]
+
+        if _get_detail_ids_with_status(detail_table, container_id_str, "approved", ids=deleted_ids_str):
+            return False, "承認済みの明細は削除できません。", 400
+
         # header_id も条件に含め、他コンテナに属する明細IDが紛れ込んでいても削除されないようにする
         supabase.table(detail_table).delete().eq(
             "header_id", container_id_str
         ).in_(
             "id", deleted_ids_str
+        ).neq(
+            "status", "approved"
         ).execute()
 
     # ----------------------------------------------------
     # 4. 明細カードの更新 (UPDATE) または 新規追加 (INSERT)
-    #    rejected の場合は削除のみ許可し、残明細の内容は変更しない
+    #    却下済みコンテナでも既存明細の編集（再申請）を許可するが、
+    #    明細ごとにDB上の現在ステータスを見て、承認済み明細への誤操作を防ぐ
+    #    ※ updated_details には変更のあった明細のみが含まれる前提のため、
+    #      合計金額・ステータスの再計算はこのループの後にDB上の残存明細から行う（ここでは計算しない）
     # ----------------------------------------------------
-    calculated_total_amount = 0
-
-    if status_val == "rejected":
-        remaining_res = (
+    existing_ids = [str(item.id) for item in payload.updated_details if item.id is not None]
+    current_status_by_id: Dict[str, str] = {}
+    if existing_ids:
+        current_rows_res = (
             supabase.table(detail_table)
-            .select("amount")
+            .select("id, status")
             .eq("header_id", container_id_str)
+            .in_("id", existing_ids)
             .execute()
         )
-        remaining_rows = remaining_res.data if isinstance(remaining_res.data, list) else []
-        calculated_total_amount = sum(
-            int(row.get("amount") or 0)
-            for row in remaining_rows
-            if isinstance(row, dict)
-        )
-    else:
-        for item in payload.updated_details:
-            calculated_total_amount += item.amount
+        for row in (current_rows_res.data or []):
+            if isinstance(row, dict):
+                current_status_by_id[str(row.get("id"))] = row.get("status")
 
-            # 共通カラムデータの構築
-            record_data = {
-                "header_id": container_id_str,
-                "usage_date": item.usage_date.isoformat(),
-                "category": item.category,
-                "amount": item.amount,
-                "status": "pending",
-            }
+    for item in payload.updated_details:
+        # 既存明細が現在 approved の場合、このエンドポイント経由の編集は許可しない
+        # （UI側の canEditCard でも approved は編集不可の想定だが、API側でも二重に防御する）
+        if item.id is not None and current_status_by_id.get(str(item.id)) == "approved":
+            return False, "承認済みの明細は編集できません。", 400
 
-            # カテゴリ固有データのマッピング
-            if is_transport:
-                record_data.update({
-                    "departure": item.departure,
-                    "arrival": item.arrival,
-                    "is_round_trip": item.is_round_trip if item.is_round_trip is not None else True,
-                })
-            else:
-                record_data.update({
-                    "remark": item.remark,
-                })
+        # 共通カラムデータの構築。新規追加・pending明細の編集・rejected明細の再申請の
+        # いずれも最終的に pending になる（approvedのケースは直前のガードで return 済み）
+        record_data = {
+            "header_id": container_id_str,
+            "usage_date": item.usage_date.isoformat(),
+            "category": item.category,
+            "amount": item.amount,
+            "status": "pending",
+        }
 
-            if item.id is not None:
-                # 既存明細の更新 (UPDATE)
-                # header_id も条件に含め、他コンテナに属する明細IDが紛れ込んでいても更新されないようにする
-                supabase.table(detail_table).update(record_data).eq(
-                    "id", str(item.id)
-                ).eq(
-                    "header_id", container_id_str
-                ).execute()
-            else:
-                # 新規追加明細の登録 (INSERT) - UUIDとcreated_atを新規生成
-                record_data.update({
-                    "id": str(uuid4()),
-                    "created_at": now_iso,
-                })
-                supabase.table(detail_table).insert(record_data).execute()
+        # カテゴリ固有データのマッピング
+        if is_transport:
+            record_data.update({
+                "departure": item.departure,
+                "arrival": item.arrival,
+                "is_round_trip": item.is_round_trip if item.is_round_trip is not None else True,
+            })
+        else:
+            record_data.update({
+                "remark": item.remark,
+            })
+
+        if item.id is not None:
+            # 既存明細の更新 (UPDATE)
+            # comment はここでは一切触れない（既存の値をDB上でそのまま保持する）
+            # header_id も条件に含め、他コンテナに属する明細IDが紛れ込んでいても更新されないようにする
+            supabase.table(detail_table).update(record_data).eq(
+                "id", str(item.id)
+            ).eq(
+                "header_id", container_id_str
+            ).execute()
+        else:
+            # 新規追加明細の登録 (INSERT) - UUIDとcreated_atを新規生成
+            record_data.update({
+                "id": str(uuid4()),
+                "created_at": now_iso,
+            })
+            supabase.table(detail_table).insert(record_data).execute()
 
     # ----------------------------------------------------
-    # 5. ヘッダー側の合計金額 (total_amount) を最新に更新
+    # 5. 明細の最新状態（status / amount）をDB上の残存明細から取得し、
+    #    ヘッダーの status / total_amount / version を更新
     # ----------------------------------------------------
+    all_details_res = (
+        supabase.table(detail_table)
+        .select("status, amount")
+        .eq("header_id", container_id_str)
+        .execute()
+    )
+    remaining_rows = [
+        row for row in (all_details_res.data or []) if isinstance(row, dict)
+    ]
+    statuses = [row.get("status") for row in remaining_rows]
+    calculated_total_amount = sum(int(row.get("amount") or 0) for row in remaining_rows)
+    new_header_status = _calculate_header_status(statuses) if statuses else "pending"
+
     header_update_res = (
         supabase.table("application_header")
         .update({
             "total_amount": calculated_total_amount,
+            "status": new_header_status,
             "version": payload.version + 1,
         })
         .eq("id", container_id_str)
@@ -280,11 +358,12 @@ def update_application_approval(
     is_transport = category_name == "交通費"
     detail_table = "transportation_detail" if is_transport else "expense_detail"
 
-    # 2. 各明細カードの status を更新
+    # 2. 各明細カードの status・comment を更新
     # header_id も条件に含め、他コンテナに属する明細IDが紛れ込んでいても更新されないようにする
     for item in payload.details:
         supabase.table(detail_table).update({
-            "status": item.status
+            "status": item.status,
+            "comment": item.comment,
         }).eq("id", str(item.id)).eq("header_id", container_id_str).execute()
 
     # 3. コンテナに紐づく全明細のステータスを取得して親（ヘッダー）のステータスを自動判定
@@ -296,21 +375,12 @@ def update_application_approval(
     )
 
     statuses = [
-        row.get("status") 
-        for row in (all_details_res.data or []) 
+        row.get("status")
+        for row in (all_details_res.data or [])
         if isinstance(row, dict)
     ]
 
-    # 親コンテナのステータス判定ロジック
-    # - 全て approved -> approved
-    # - 1つでも rejected があり pending がない -> rejected (または部分却下)
-    # - pending が残っている -> pending
-    if all(s == "approved" for s in statuses):
-        header_status = "approved"
-    elif any(s == "rejected" for s in statuses) and not any(s == "pending" for s in statuses):
-        header_status = "rejected"
-    else:
-        header_status = "pending"
+    header_status = _calculate_header_status(statuses)
 
     # 4. コンテナヘッダーのステータス・承認者・承認日時を更新
     header_update_payload: Dict[str, Any] = {
