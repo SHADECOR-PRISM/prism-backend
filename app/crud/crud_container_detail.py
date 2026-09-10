@@ -150,22 +150,30 @@ def get_admin_container_detail_by_id(
 
 
 def get_bulk_admin_container_details(
-    container_ids: List[str]
+    container_ids: List[str],
+    target_user_id: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     管理者用: get_admin_container_detail_by_id の複数件一括取得版。
     指定された複数の container_id に紐づくヘッダー情報・明細をまとめて取得する。
+
+    target_user_id が指定された場合（個人明細表モード）は、container_ids のうち
+    このユーザー以外の所有物をクエリの時点で除外する。フロントエンドは事前に
+    ユーザー単位でスコープされたcontainer_idsしか渡さない設計だが、サーバー側でも
+    同じ制約をかけることで多層防御とする（詳細: docs/print-bulk-details-ownership-gap.md）。
     """
     if not container_ids:
         return []
 
     # 1. ヘッダー情報、プロジェクト名、申請者ユーザー情報（user_id, name）を一括取得
-    response = (
+    query = (
         supabase.table("application_header")
         .select("*, projects(name), users:user_id(user_id, name)")
         .in_("id", container_ids)
-        .execute()
     )
+    if target_user_id:
+        query = query.eq("user_id", target_user_id)
+    response = query.execute()
 
     if not response.data or not isinstance(response.data, list):
         return []

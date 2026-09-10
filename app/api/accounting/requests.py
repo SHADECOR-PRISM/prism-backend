@@ -443,7 +443,8 @@ def get_admin_containers_bulk_details(
             )
 
         str_ids = [str(cid) for cid in payload.container_ids]
-        details = get_bulk_admin_container_details(str_ids)
+        target_user_id = str(payload.target_user_id) if payload.target_user_id else None
+        details = get_bulk_admin_container_details(str_ids, target_user_id)
         return details
 
     except HTTPException:
