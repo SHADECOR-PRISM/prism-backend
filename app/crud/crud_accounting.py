@@ -28,17 +28,17 @@ def _get_detail_ids_with_status(
 def _calculate_header_status(statuses: list) -> str:
     """
     明細ステータスの一覧から、親コンテナ（application_header）の
-    ステータスを判定する共通ロジック。
-    - 全て approved -> approved
-    - 1つでも rejected があり pending がない -> rejected (または部分却下)
-    - pending が残っている -> pending
+    ステータスを判定する共通ロジック。優先順位は以下の通り。
+    1. 1つでも rejected があれば -> rejected（最優先。pending/approvedとの混在でも rejected）
+    2. （rejectedが無く）1つでも pending があれば -> pending
+    3. それ以外（全て approved）-> approved
     """
-    if all(s == "approved" for s in statuses):
-        return "approved"
-    elif any(s == "rejected" for s in statuses) and not any(s == "pending" for s in statuses):
+    if any(s == "rejected" for s in statuses):
         return "rejected"
-    else:
+    elif any(s == "pending" for s in statuses):
         return "pending"
+    else:
+        return "approved"
 
 
 # ==========================================
