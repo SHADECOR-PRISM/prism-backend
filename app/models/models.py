@@ -19,6 +19,7 @@ class Users(Base):
   role = Column(Enum('admin', 'general', name='user_role'), nullable=False)
   is_active = Column(Boolean, default=True)
   created_at = Column(DateTime(timezone=True))
+  updated_at = Column(DateTime(timezone=True))
 
   # relationship
   applications = relationship("ApplicationHeader", back_populates="applicant", foreign_keys="ApplicationHeader.user_id")
@@ -34,7 +35,8 @@ class Project(Base):
   total_budget = Column(Integer, default=0)
   is_active = Column(Boolean, default=True)
   created_at = Column(DateTime(timezone=True))
-  
+  updated_at = Column(DateTime(timezone=True))
+
   # relationship
   headers = relationship("ApplicationHeader", back_populates="project")
 
@@ -55,7 +57,8 @@ class ApplicationHeader(Base):
   status = Column(Enum('pending', 'approved', 'rejected', name='approval_status'), default='pending')
   total_amount = Column(Integer, default=0)
   created_at = Column(DateTime(timezone=True))
-  
+  updated_at = Column(DateTime(timezone=True))
+
   # relationship
   applicant = relationship("Users", foreign_keys=[user_id], back_populates="applications")
   approver = relationship("Users", foreign_keys=[approved_by], back_populates="approved_apps")
@@ -78,7 +81,8 @@ class TransportationDetail(Base):
   amount = Column(Integer, nullable=False)
   status = Column(Enum('pending', 'approved', 'rejected', name='approval_status'), default='pending')
   created_at = Column(DateTime(timezone=True))
-  
+  updated_at = Column(DateTime(timezone=True))
+
   # relationship
   header = relationship("ApplicationHeader", back_populates="transport_details")
 
@@ -99,6 +103,7 @@ class ExpenseDetail(Base):
   amount = Column(Integer, nullable=False)
   status = Column(Enum('pending', 'approved', 'rejected', name='approval_status'), default='pending')
   created_at = Column(DateTime(timezone=True))
-  
+  updated_at = Column(DateTime(timezone=True))
+
   # relationship
   header = relationship("ApplicationHeader", back_populates="expense_details")

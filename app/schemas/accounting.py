@@ -35,6 +35,8 @@ class TransportDetailCreate(TransportDetailBase):
 class TransportDetailResponse(TransportDetailBase):
     id: UUID
     status: Literal["pending", "approved", "rejected"]
+    comment: Optional[str] = Field(None, max_length=100)
+    updated_at: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -61,6 +63,8 @@ class ExpenseDetailCreate(ExpenseDetailBase):
 class ExpenseDetailResponse(ExpenseDetailBase):
     id: UUID
     status: Literal["pending", "approved", "rejected"]
+    comment: Optional[str] = Field(None, max_length=100)
+    updated_at: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -100,6 +104,7 @@ class ContainerDetailResponse(BaseModel):
     status: Literal["pending", "approved", "rejected"]
     total_amount: int
     version: int
+    updated_at: Optional[str] = None
     transportation_details: List[TransportDetailResponse] = []
     expense_details: List[ExpenseDetailResponse] = []
 
@@ -143,6 +148,7 @@ class ApplicationUpdateResponse(BaseModel):
 class CardStatusUpdateItem(BaseModel):
     id: UUID
     status: Literal["pending", "approved", "rejected"]
+    comment: Optional[str] = Field(None, max_length=100)
 
 class ApplicationApprovalRequest(BaseModel):
     container_id: UUID

@@ -28,9 +28,10 @@ router = APIRouter()
 # ==========================================
 @router.get("/container/me", response_model=list[Container], operation_id="getContainerMe")
 def get_container_me(
-    start: datetime, 
-    end: datetime, 
-    offset: int, 
+    start: datetime,
+    end: datetime,
+    offset: int,
+    status_filter: str | None = Query(None, alias="status"),
     current_user: Users = Depends(get_current_user)
 ):
     try:
@@ -38,7 +39,7 @@ def get_container_me(
         end_naive = end.replace(tzinfo=None) if end.tzinfo else end
 
         # CRUD 側で Supabase の select("*, projects(name)") により一括取得（N+1解消）
-        containers = get_user_container(str(current_user.id), start_naive, end_naive, offset)
+        containers = get_user_container(str(current_user.id), start_naive, end_naive, offset, status=status_filter)
 
         result = []
         for container in containers:
@@ -183,10 +184,12 @@ def get_container_detail(
 # ==========================================
 @router.get("/admin/container/all", response_model=list[Container], operation_id="getAdminContainerAll")
 def get_container_all(
-    start: datetime, 
-    end: datetime, 
+    start: datetime,
+    end: datetime,
     offset: int = 0,
     limit: int = Query(20, ge=1, le=1000),  # デフォルト20件、最大1000件
+    status_filter: str | None = Query(None, alias="status"),
+    user_id_filter: UUID | None = Query(None, alias="user_id"),
     current_user: Users = Depends(get_current_user)
 ):
     try:
@@ -201,7 +204,14 @@ def get_container_all(
         end_naive = end.replace(tzinfo=None) if end.tzinfo else end
 
         # 全ユーザーのコンテナ一覧を CRUD 経由で取得（limit を渡す）
-        containers = get_all_containers(start_naive, end_naive, offset=offset, limit=limit)
+        containers = get_all_containers(
+            start_naive,
+            end_naive,
+            offset=offset,
+            limit=limit,
+            status=status_filter,
+            user_id=str(user_id_filter) if user_id_filter else None,
+        )
 
         result = []
         for container in containers:
