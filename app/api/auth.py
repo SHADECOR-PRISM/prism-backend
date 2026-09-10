@@ -1,7 +1,15 @@
-from fastapi import APIRouter, HTTPException, Response, Cookie
+from fastapi import APIRouter, HTTPException, Response, Cookie, Header
 from typing import NoReturn, Optional
 
-from app.crud.crud_auth import sign_in, sign_out, refresh_session
+from app.crud.crud_auth import (
+  sign_in,
+  sign_out,
+  refresh_session,
+  check_lockout,
+  record_failure,
+  reset_attempts,
+  MAX_FAILED_ATTEMPTS,
+)
 from app.crud.crud_users import get_user
 from app.schemas.auth import Token
 from app.core.supabase_retry import NETWORK_ERRORS
@@ -37,20 +45,34 @@ def login(userData: dict, response: Response):
   user_id = str(userData.get("userId"))
   password = str(userData.get("password"))
 
+  # 存在しないuser_idでも同じ経路でロック判定する（ユーザー列挙対策）
+  locked_until = check_lockout(user_id)
+  if locked_until:
+    raise HTTPException(
+      status_code=423,
+      detail={"message": "locked", "locked_until": locked_until.isoformat()},
+    )
+
   email = user_id + config.ADD_EMAIL_ADRESS
-  
+
   try:
     auth_response = sign_in(email, password)
   except NETWORK_ERRORS as e:
     _raise_if_network_error(e)
   except Exception:
-    raise HTTPException(status_code = 401, detail = "failed")
-  
+    failed_count = record_failure(user_id)
+    remaining = max(MAX_FAILED_ATTEMPTS - failed_count, 0)
+    raise HTTPException(status_code=401, detail={"message": "failed", "remaining_attempts": remaining})
+
   if not auth_response.session:
-    raise HTTPException(status_code = 401, detail = "session failed")
-  
+    failed_count = record_failure(user_id)
+    remaining = max(MAX_FAILED_ATTEMPTS - failed_count, 0)
+    raise HTTPException(status_code=401, detail={"message": "session failed", "remaining_attempts": remaining})
+
   access_token = auth_response.session.access_token
   role_val = _role_from_access_token(access_token)
+
+  reset_attempts(user_id)
 
   response.set_cookie(
     key="refresh_token",
@@ -103,7 +125,8 @@ def auth_refresh(response: Response, refresh_token: Optional[str] = Cookie(None)
   }
 
 @router.post("/logout", operation_id="logout")
-def logout(response: Response):
+def logout(response: Response, authorization: Optional[str] = Header(None)):
+  access_token = authorization.split(" ", 1)[1] if authorization and authorization.startswith("Bearer ") else None
   response.delete_cookie("refresh_token", secure=config.COOKIE_SECURE, samesite=config.COOKIE_SAMESITE)
-  sign_out()
+  sign_out(access_token)
   return None
