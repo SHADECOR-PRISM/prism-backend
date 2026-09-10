@@ -6,10 +6,14 @@ from app.api import auth
 from app.api import user
 from app.api import projects
 from app.api.accounting import requests
-from app.core.config import FRONTEND_URL
-from app.core.exceptions import global_exception_handler 
+from app.core.config import FRONTEND_URL, ENABLE_API_DOCS
+from app.core.exceptions import global_exception_handler
 
-app = FastAPI()
+app = FastAPI(
+  docs_url="/docs" if ENABLE_API_DOCS else None,
+  redoc_url="/redoc" if ENABLE_API_DOCS else None,
+  openapi_url="/openapi.json" if ENABLE_API_DOCS else None,
+)
 
 app.add_middleware(
   CORSMiddleware,

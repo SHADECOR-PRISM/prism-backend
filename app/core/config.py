@@ -12,6 +12,9 @@ ADD_EMAIL_ADRESS = str(os.getenv('ADD_EMAIL_ADRESS'))
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")
 
+# APIドキュメント（/docs, /redoc, /openapi.json）の公開可否（本番のみCloud Run環境変数でfalseに上書きする。未設定時は開発環境のデフォルト挙動＝公開を維持）
+ENABLE_API_DOCS = os.getenv("ENABLE_API_DOCS", "true").lower() == "true"
+
 # local development
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 FETCH_LIMIT = 10
