@@ -175,3 +175,6 @@ class AnalyticsSummaryResponse(BaseModel):
 # 管理者: 複数コンテナ明細一括取得用スキーマ
 class BulkContainerDetailsRequest(BaseModel):
     container_ids: List[UUID]
+    # 個人明細表モード時のみ指定。指定された場合、container_idsのうちこのユーザー以外の
+    # 所有物はサーバー側で除外する（多層防御。詳細: docs/print-bulk-details-ownership-gap.md）
+    target_user_id: Optional[UUID] = None
