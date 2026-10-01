@@ -31,7 +31,9 @@ class Project(Base):
 
   # attribute  
   id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+  person_in_charge = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
   name = Column(String(255), nullable=False)
+  real_name = Column(Text, nullable=True)
   total_budget = Column(Integer, default=0)
   is_active = Column(Boolean, default=True)
   created_at = Column(DateTime(timezone=True))
@@ -39,6 +41,11 @@ class Project(Base):
 
   # relationship
   headers = relationship("ApplicationHeader", back_populates="project")
+
+  # real_name は NULL 許容。未設定（NULL/空文字）の場合は name で代替する
+  @property
+  def display_real_name(self) -> str:
+    return self.real_name or self.name
 
 # --- Application Header Table ---
 class ApplicationHeader(Base):
