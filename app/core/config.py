@@ -21,3 +21,10 @@ ENABLE_API_DOCS = os.getenv("ENABLE_API_DOCS", "true").lower() == "true"
 # local development
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 FETCH_LIMIT = 10
+
+
+# Discord通知（Webhook）。未設定（None/空文字）の場合は通知を安全にスキップする。
+# ※上記の str(os.getenv()) 形式だと未設定時に文字列 "None" になり判定できないため、意図的に str() を付けない
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+DISCORD_THREAD_ID = os.getenv("DISCORD_THREAD_ID")
+DISCORD_ROLE_ID = os.getenv("DISCORD_ROLE_ID")
