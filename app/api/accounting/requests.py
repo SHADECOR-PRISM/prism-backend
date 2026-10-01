@@ -130,7 +130,9 @@ def update_existing_application(
             )
 
         # DB更新成功後にDiscordへ通知（全削除でヘッダーが無い場合は通知されない）
-        notify_application_updated(str(request_data.container_id), current_user.name)
+        # 変更のあった明細のみが updated_details に含まれる仕様のため、明細の追加・更新・削除が無い保存は通知しない
+        if request_data.updated_details or request_data.deleted_detail_ids:
+            notify_application_updated(str(request_data.container_id), current_user.name)
 
         return ApplicationUpdateResponse(
             success=True,
