@@ -20,6 +20,7 @@ from app.schemas.accounting import (
 )
 from app.models.models import Users
 from app.core.date_formatter import parse_iso_date_to_string
+from app.core.discord_notifier import notify_new_application, notify_application_updated
 
 router = APIRouter()
 
@@ -88,6 +89,8 @@ def create_new_application(
             user_db_id=str(current_user.id),
             request_data=request_data
         )
+        # DB登録成功後にDiscordへ通知（失敗しても例外は出さず、申請の登録結果に影響しない）
+        notify_new_application(str(result["header_id"]), current_user.name)
         return result
 
     except HTTPException:
@@ -125,6 +128,9 @@ def update_existing_application(
                 status_code=error_code,
                 detail=message
             )
+
+        # DB更新成功後にDiscordへ通知（全削除でヘッダーが無い場合は通知されない）
+        notify_application_updated(str(request_data.container_id), current_user.name)
 
         return ApplicationUpdateResponse(
             success=True,
