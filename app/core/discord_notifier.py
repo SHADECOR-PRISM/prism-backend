@@ -9,6 +9,8 @@
 - どんなエラーが起きても例外を外へ出さない（PRISM本体の保存・レスポンスに影響させない）。
 """
 import json
+import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from datetime import datetime, timedelta, timezone
@@ -19,6 +21,10 @@ from app.db.session import supabase
 
 REQUEST_TIMEOUT_SEC = 3
 TOTAL_TIMEOUT_SEC = 4
+# レート制限(429)時に待って再送する最大秒数。これを超える待機が必要な場合は再送せず諦める
+MAX_RETRY_WAIT_SEC = 2
+# 残りリクエスト数がこの値以下になったら、制限に近づいているとしてログに残す
+RATE_LIMIT_WARN_REMAINING = 1
 BOT_NAME = "会計申請通知bot"
 JST = timezone(timedelta(hours=9))
 
@@ -116,8 +122,39 @@ def _post_to_discord(embed: Dict[str, Any]) -> None:
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SEC):
-        pass
+    try:
+        _send(request)
+    except urllib.error.HTTPError as e:
+        if e.code != 429:
+            raise
+        wait = _retry_after_seconds(e)
+        if wait > MAX_RETRY_WAIT_SEC:
+            print(f"discord_notifier: レート制限(429)で{wait}秒の待機が必要なため再送せずスキップします")
+            return
+        print(f"discord_notifier: レート制限(429)のため{wait}秒待って1回だけ再送します")
+        time.sleep(wait)
+        _send(request)
+
+
+def _send(request: urllib.request.Request) -> None:
+    """1回送信する。残りリクエスト数が少ない場合はレート制限に近づいているとしてログに残す。"""
+    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SEC) as response:
+        remaining = response.headers.get("X-RateLimit-Remaining")
+        if isinstance(remaining, str) and remaining.isdigit() and int(remaining) <= RATE_LIMIT_WARN_REMAINING:
+            reset_after = response.headers.get("X-RateLimit-Reset-After")
+            print(f"discord_notifier: レート制限に近づいています（残り{remaining}件、リセットまで{reset_after}秒）")
+
+
+def _retry_after_seconds(error: urllib.error.HTTPError) -> float:
+    """429 応答の Retry-After（ヘッダー優先、なければ本文の retry_after）を秒で返す。取得できなければ 1 秒。"""
+    try:
+        header = error.headers.get("Retry-After") if error.headers else None
+        if header:
+            return max(float(header), 0.0)
+        body = json.loads(error.read().decode("utf-8"))
+        return max(float(body.get("retry_after", 1.0)), 0.0)
+    except Exception:
+        return 1.0
 
 
 def _run_with_deadline(label: str, job) -> None:
