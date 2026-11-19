@@ -39,9 +39,18 @@ docker-compose.override.yml
 app/**/test/
 
 # Secrets and environment variables
+# 公開リポジトリのため、秘密情報・認証情報になり得るファイルは網羅的に除外する
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+.dev.vars
+*.pem
+*.key
+*.p12
+*.pfx
+service-account*.json
+*credentials*.json
+.wrangler/
 
 # IDEs
 .vscode/

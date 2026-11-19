@@ -13,10 +13,10 @@ PRISM は、プロジェクト運営で発生するリソース管理、金銭�
 堅牢な型安全性と高性能な API レスポンスを実現するため、以下の技術を採用しています。
 - **Language:** Python (v3.11)
 - **Framework:** FastAPI
-- **ORM/Model:** SQLModel (SQLAlchemy + Pydantic)
-- **Database/Auth:** Supabase (PostgreSQL)
+- **Model/Schema:** SQLAlchemy（テーブルのモデル定義）/ Pydantic（リクエスト・レスポンスのスキーマ）
+- **Database/Auth:** Supabase (PostgreSQL)。DB操作は `supabase-py` クライアント経由
 - **Infrastructure:** Docker / Docker Compose
-- **Migration:** Alembic
+- **Migration:** 未使用（DBスキーマの変更は Supabase 側で管理）
 
 ### 🤝 コミットメッセージ規則
 
@@ -69,7 +69,7 @@ prism-backend/
 │   ├── core/          # 全体設定（config.py等）
 │   ├── crud/          # DB操作ロジック
 │   ├── db/            # DB接続・セッション管理
-│   ├── models/        # SQLModel定義
+│   ├── models/        # SQLAlchemyモデル定義
 │   ├── schemas/       # Pydantic型定義
 │   └── main.py        # FastAPI起動エントリーポイント
 ├── docker-compose.yml # 環境オーケストレーション
@@ -88,6 +88,7 @@ prism-backend/
 - Supabase の URL や API キーなどの機密情報は `.env` ファイルで管理します。
 - `.env.example` をコピーして `.env` を作成してください。
 - **`.env` は GitHub にコミットしないでください（`.gitignore` で除外済みです）。**
+- 本リポジトリは公開リポジトリです。API キー・Webhook URL・本番の URL・個人情報などの機密情報を、コードやドキュメント、コミットメッセージに書かないでください。
 
 #### 3. テストファイルの構築について
 - .gitignoreに `app/` 内部の任意の場所に配置されたtestフォルダを排除するように設定しています。
