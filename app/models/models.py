@@ -85,6 +85,7 @@ class TransportationDetail(Base):
   category = Column(Enum('train', 'bus', 'taxi', 'air', 'other', name='transportation_category'), nullable=False)
   departure = Column(String(100))
   arrival = Column(String(100))
+  remark = Column(Text)
   amount = Column(Integer, nullable=False)
   status = Column(Enum('pending', 'approved', 'rejected', name='approval_status'), default='pending')
   created_at = Column(DateTime(timezone=True))

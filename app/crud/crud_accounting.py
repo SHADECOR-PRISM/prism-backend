@@ -86,6 +86,7 @@ def create_application(user_db_id: str, request_data: ApplicationCreateRequest) 
                 "departure": detail.departure,
                 "arrival": detail.arrival,
                 "is_round_trip": detail.is_round_trip,
+                "remark": detail.remark,
                 "amount": detail.amount,
                 "status": "pending",
                 "created_at": now_iso,
@@ -266,6 +267,7 @@ def update_application(payload: ApplicationUpdateRequest, user_db_id: str) -> Tu
                 "departure": item.departure,
                 "arrival": item.arrival,
                 "is_round_trip": item.is_round_trip if item.is_round_trip is not None else True,
+                "remark": item.remark,
             })
         else:
             record_data.update({
