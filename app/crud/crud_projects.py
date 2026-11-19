@@ -11,7 +11,10 @@ def get_project(project_id: str):
     response = supabase.table("projects").select("*").eq("id", project_id).single().execute()
     return _to_project(cast(Dict[str, Any], response.data))
 
-# is_active = True の稼働中プロジェクト一覧を取得する
-def get_active_projects() -> List[Project]:
-    response = supabase.table("projects").select("*").eq("is_active", True).execute()
+# プロジェクト一覧を取得する。既定は is_active = True の稼働中のみ。include_inactive=True で終了済みも含める
+def get_active_projects(include_inactive: bool = False) -> List[Project]:
+    query = supabase.table("projects").select("*")
+    if not include_inactive:
+        query = query.eq("is_active", True)
+    response = query.execute()
     return [_to_project(cast(Dict[str, Any], row)) for row in response.data]

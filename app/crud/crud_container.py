@@ -9,7 +9,8 @@ def get_user_container(
     end: datetime,
     offset: int,
     limit: int = 20,
-    status: str | None = None
+    status: str | None = None,
+    project_id: str | None = None
 ) -> List[Dict[str, Any]]:
     """
     log ページ（コンテナ一覧）に必要なデータセットを取得する。
@@ -29,6 +30,9 @@ def get_user_container(
 
     if status:
         query = query.eq("status", status)
+
+    if project_id:
+        query = query.eq("project_id", project_id)
 
     response = (
         query
@@ -70,7 +74,8 @@ def get_all_containers(
     offset: int,
     limit: int = 20,
     status: str | None = None,
-    user_id: str | None = None
+    user_id: str | None = None,
+    project_id: str | None = None
 ) -> List[Dict[str, Any]]:
     """
     admin approval ページ（全ユーザーのコンテナ一覧）に必要なデータセットを取得する。
@@ -92,6 +97,9 @@ def get_all_containers(
     # application_header.user_id は users テーブルへの外部キー (UUID)
     if user_id:
         query = query.eq("user_id", user_id)
+
+    if project_id:
+        query = query.eq("project_id", project_id)
 
     response = (
         query

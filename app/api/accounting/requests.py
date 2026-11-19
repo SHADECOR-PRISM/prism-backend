@@ -33,6 +33,7 @@ def get_container_me(
     end: datetime,
     offset: int,
     status_filter: str | None = Query(None, alias="status"),
+    project_id_filter: UUID | None = Query(None, alias="project_id"),
     current_user: Users = Depends(get_current_user)
 ):
     try:
@@ -40,7 +41,7 @@ def get_container_me(
         end_naive = end.replace(tzinfo=None) if end.tzinfo else end
 
         # CRUD 側で Supabase の select("*, projects(name)") により一括取得（N+1解消）
-        containers = get_user_container(str(current_user.id), start_naive, end_naive, offset, status=status_filter)
+        containers = get_user_container(str(current_user.id), start_naive, end_naive, offset, status=status_filter, project_id=str(project_id_filter) if project_id_filter else None)
 
         result = []
         for container in containers:
@@ -198,6 +199,7 @@ def get_container_all(
     limit: int = Query(20, ge=1, le=1000),  # デフォルト20件、最大1000件
     status_filter: str | None = Query(None, alias="status"),
     user_id_filter: UUID | None = Query(None, alias="user_id"),
+    project_id_filter: UUID | None = Query(None, alias="project_id"),
     current_user: Users = Depends(get_current_user)
 ):
     try:
@@ -219,6 +221,7 @@ def get_container_all(
             limit=limit,
             status=status_filter,
             user_id=str(user_id_filter) if user_id_filter else None,
+            project_id=str(project_id_filter) if project_id_filter else None,
         )
 
         result = []
