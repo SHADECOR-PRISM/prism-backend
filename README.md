@@ -11,7 +11,7 @@ PRISM は、プロジェクト運営で発生するリソース管理、金銭�
 ### 🚀 技術スタック
 
 堅牢な型安全性と高性能な API レスポンスを実現するため、以下の技術を採用しています。
-- **Language:** Python (v3.12)
+- **Language:** Python (v3.11)
 - **Framework:** FastAPI
 - **ORM/Model:** SQLModel (SQLAlchemy + Pydantic)
 - **Database/Auth:** Supabase (PostgreSQL)
