@@ -25,6 +25,7 @@ class TransportDetailBase(BaseModel):
     departure: Optional[str] = Field(None, max_length=100)
     arrival: Optional[str] = Field(None, max_length=100)
     is_round_trip: bool = True
+    remark: Optional[str] = Field(None, max_length=100)
     amount: int = Field(gt=0, description="金額は1円以上")
 
 # 登録用（Write）

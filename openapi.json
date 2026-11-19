@@ -1637,6 +1637,18 @@
             "title": "Is Round Trip",
             "default": true
           },
+          "remark": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remark"
+          },
           "amount": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
@@ -1710,6 +1722,18 @@
             "type": "boolean",
             "title": "Is Round Trip",
             "default": true
+          },
+          "remark": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remark"
           },
           "amount": {
             "type": "integer",
