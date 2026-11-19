@@ -37,3 +37,20 @@ PRISM（Project Resource & Inventory System Manager）のバックエンド。Fa
 ## ドキュメント
 
 ソースを変更したら、対応する `docs/dev-guide/`（親ディレクトリの `docs/`）のドキュメントも手動で更新する。
+
+## 機密情報の取り扱い（公開リポジトリ）
+
+このリポジトリは **public** で、就職活動・オープンソースとして公開する。次のものを、コード・コメント・ドキュメント・コミットメッセージ・PR / Issue に**絶対に書かない**。
+
+- API キー・トークン・パスワード・秘密鍵（Supabase の Publishable / Secret Key、JWT、Cloudflare / GCP の認証情報など）
+- Discord の Webhook URL・スレッド ID・ロール ID
+- 本番サービスの実 URL・プロジェクト ID / 番号（Cloud Run、Cloudflare Pages、Supabase のプロジェクト URL など）
+- 実在するユーザーの氏名・メールアドレス・ユーザー ID、DB のダンプや実データ、ダミーのメール用ドメインの実際の値
+
+守ること:
+
+- 設定値は `.env`（`.gitignore` で除外）か、本番のホスティング側の環境変数・シークレットにだけ置く。説明が必要なときは `<SUPABASE_URL>` のようなプレースホルダーで書く。
+- コミット前に `git diff --staged` を読み、上記が混ざっていないか確認する。`.env*` や鍵ファイルを `git add -f` で追加しない。
+- 内部向けの情報（デプロイ手順・運用資料など）は、private の `prism-docs` に置き、このリポジトリには書かない。
+- コミットのメールアドレスは、GitHub の no-reply アドレスを使う。
+- 誤ってコミット・push した場合は、キーを**先に失効・再発行**してから相談する（履歴から消しても、公開された時点で漏えいとみなす）。
